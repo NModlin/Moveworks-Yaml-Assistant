@@ -1122,11 +1122,16 @@ class MainWindow(QMainWindow):
         self._update_all_panels()
 
     def _on_step_selected(self, step_index: int):
-        """Handle step selection from the workflow list."""
+        """Handle step selection from the workflow list with enhanced JSON selector integration."""
         if 0 <= step_index < len(self.workflow_list.workflow.steps):
             step = self.workflow_list.workflow.steps[step_index]
             self.config_panel.set_step(step, step_index)
+
+            # Enhanced JSON panel integration with better step handling
             self.enhanced_json_panel.set_workflow(self.workflow_list.workflow, step_index)
+
+            # Also call the refresh method to ensure proper update
+            self.enhanced_json_panel.refresh_for_step_selection(step_index)
 
             # Update examples context based on step type
             if isinstance(step, ActionStep):
@@ -1138,11 +1143,18 @@ class MainWindow(QMainWindow):
         else:
             self.config_panel.clear_selection()
             self.examples_panel.set_context("general")
+            # Clear the JSON panel when no step is selected
+            self.enhanced_json_panel.set_workflow(self.workflow_list.workflow, -1)
 
     def _on_step_updated(self):
-        """Handle updates to step configuration."""
+        """Handle updates to step configuration with enhanced JSON selector refresh."""
         self.workflow_list.update_workflow_display()
         self.yaml_panel.refresh_yaml()
+
+        # Refresh the JSON selector to pick up any new parsed JSON data
+        current_step_index = self.workflow_list.currentRow()
+        if current_step_index >= 0:
+            self.enhanced_json_panel.refresh_for_step_selection(current_step_index)
 
     def _on_variable_selected(self, path: str):
         """Handle variable selection from the JSON panel."""
