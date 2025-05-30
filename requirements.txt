@@ -1,0 +1,14 @@
+# Core dependencies for Moveworks YAML Assistant
+# Phase 1: Core Engine
+PyYAML>=6.0
+click>=8.0.0
+
+# Phase 2: PySide6 Desktop UI
+PySide6>=6.5.0
+
+# Development and testing
+pytest>=7.0.0
+pytest-qt>=4.0.0
+
+# Optional: For better JSON handling and validation
+jsonschema>=4.0.0
