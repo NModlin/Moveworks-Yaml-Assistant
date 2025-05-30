@@ -27,6 +27,8 @@ from core_structures import (
 from mw_actions_catalog import MW_ACTIONS_CATALOG, get_action_by_name, get_all_categories
 from yaml_generator import generate_yaml_string
 from validator import comprehensive_validate
+from error_display import ErrorListWidget, ValidationDialog, StatusIndicator, HelpDialog
+from help_system import get_tooltip, get_contextual_help
 
 
 class WorkflowListWidget(QListWidget):
@@ -151,14 +153,20 @@ class StepConfigurationPanel(QStackedWidget):
 
         self.action_name_edit = QLineEdit()
         self.action_name_edit.textChanged.connect(self._on_action_data_changed)
+        self.action_name_edit.setToolTip(get_tooltip("action_name"))
+        self.action_name_edit.setPlaceholderText("e.g., mw.get_user_by_email")
         form_layout.addRow("Action Name:", self.action_name_edit)
 
         self.action_description_edit = QLineEdit()
         self.action_description_edit.textChanged.connect(self._on_action_data_changed)
+        self.action_description_edit.setToolTip(get_tooltip("description"))
+        self.action_description_edit.setPlaceholderText("Optional description of this action")
         form_layout.addRow("Description:", self.action_description_edit)
 
         self.action_output_key_edit = QLineEdit()
         self.action_output_key_edit.textChanged.connect(self._on_action_data_changed)
+        self.action_output_key_edit.setToolTip(get_tooltip("output_key"))
+        self.action_output_key_edit.setPlaceholderText("e.g., user_info")
         form_layout.addRow("Output Key:", self.action_output_key_edit)
 
         layout.addWidget(form_group)
@@ -171,6 +179,7 @@ class StepConfigurationPanel(QStackedWidget):
         self.action_input_args_table.setHorizontalHeaderLabels(["Key", "Value"])
         self.action_input_args_table.horizontalHeader().setStretchLastSection(True)
         self.action_input_args_table.itemChanged.connect(self._on_action_data_changed)
+        self.action_input_args_table.setToolTip(get_tooltip("input_args"))
         input_args_layout.addWidget(self.action_input_args_table)
 
         # Buttons for input args
@@ -192,10 +201,12 @@ class StepConfigurationPanel(QStackedWidget):
 
         self.action_json_edit = QTextEdit()
         self.action_json_edit.setPlaceholderText("Paste the JSON output this action will produce...")
+        self.action_json_edit.setToolTip(get_tooltip("json_output"))
         json_layout.addWidget(self.action_json_edit)
 
         parse_json_btn = QPushButton("Parse & Save JSON Output")
         parse_json_btn.clicked.connect(self._parse_action_json)
+        parse_json_btn.setToolTip(get_tooltip("parse_json"))
         json_layout.addWidget(parse_json_btn)
 
         layout.addWidget(json_group)
@@ -213,10 +224,14 @@ class StepConfigurationPanel(QStackedWidget):
 
         self.script_description_edit = QLineEdit()
         self.script_description_edit.textChanged.connect(self._on_script_data_changed)
+        self.script_description_edit.setToolTip(get_tooltip("description"))
+        self.script_description_edit.setPlaceholderText("Optional description of this script")
         form_layout.addRow("Description:", self.script_description_edit)
 
         self.script_output_key_edit = QLineEdit()
         self.script_output_key_edit.textChanged.connect(self._on_script_data_changed)
+        self.script_output_key_edit.setToolTip(get_tooltip("output_key"))
+        self.script_output_key_edit.setPlaceholderText("e.g., processed_data")
         form_layout.addRow("Output Key:", self.script_output_key_edit)
 
         layout.addWidget(form_group)
@@ -226,7 +241,8 @@ class StepConfigurationPanel(QStackedWidget):
         code_layout = QVBoxLayout(code_group)
 
         self.script_code_edit = QTextEdit()
-        self.script_code_edit.setPlaceholderText("Enter your APIthon script code here...")
+        self.script_code_edit.setPlaceholderText("Enter your APIthon script code here...\n\n# Example:\nuser_name = data.user_info.user.name\nresult = {'greeting': f'Hello, {user_name}!'}\nreturn result")
+        self.script_code_edit.setToolTip(get_tooltip("script_code"))
         font = QFont("Consolas", 10)
         font.setStyleHint(QFont.Monospace)
         self.script_code_edit.setFont(font)
@@ -599,10 +615,16 @@ class YamlPreviewPanel(QWidget):
         self.yaml_text.setFont(font)
         layout.addWidget(self.yaml_text)
 
-        # Validation status
-        self.validation_label = QLabel("Validation: Not checked")
-        self.validation_label.setStyleSheet("padding: 5px; border: 1px solid #ccc;")
-        layout.addWidget(self.validation_label)
+        # Validation status with enhanced display
+        self.validation_status = StatusIndicator("Ready")
+        self.validation_status.setToolTip(get_tooltip("validation_status"))
+        layout.addWidget(self.validation_status)
+
+        # Detailed error display (initially hidden)
+        self.error_display = ErrorListWidget()
+        self.error_display.setMaximumHeight(200)
+        self.error_display.hide()
+        layout.addWidget(self.error_display)
 
         self.workflow = None
 
@@ -615,8 +637,9 @@ class YamlPreviewPanel(QWidget):
         """Refresh the YAML preview and validation."""
         if not self.workflow or not self.workflow.steps:
             self.yaml_text.setPlainText("No steps in workflow")
-            self.validation_label.setText("Validation: No steps to validate")
-            self.validation_label.setStyleSheet("padding: 5px; border: 1px solid #ccc; background-color: #f0f0f0;")
+            self.validation_status.set_status("ready", "No steps to validate")
+            self.error_display.clear_errors()
+            self.error_display.hide()
             return
 
         try:
@@ -628,20 +651,19 @@ class YamlPreviewPanel(QWidget):
             errors = comprehensive_validate(self.workflow)
 
             if errors:
-                error_text = "\n".join(errors)
-                self.validation_label.setText(f"Validation: {len(errors)} error(s) found")
-                self.validation_label.setStyleSheet("padding: 5px; border: 1px solid #ccc; background-color: #ffeeee;")
-                self.validation_label.setToolTip(error_text)
+                self.validation_status.set_error_count(len(errors))
+                self.error_display.set_errors(errors)
+                self.error_display.show()
             else:
-                self.validation_label.setText("Validation: ✓ Passed")
-                self.validation_label.setStyleSheet("padding: 5px; border: 1px solid #ccc; background-color: #eeffee;")
-                self.validation_label.setToolTip("No validation errors found")
+                self.validation_status.set_error_count(0)
+                self.error_display.clear_errors()
+                self.error_display.hide()
 
         except Exception as e:
             self.yaml_text.setPlainText(f"Error generating YAML: {str(e)}")
-            self.validation_label.setText("Validation: Error")
-            self.validation_label.setStyleSheet("padding: 5px; border: 1px solid #ccc; background-color: #ffeeee;")
-            self.validation_label.setToolTip(str(e))
+            self.validation_status.set_status("error", "YAML Generation Error")
+            self.error_display.set_errors([f"YAML Generation Error: {str(e)}"])
+            self.error_display.show()
 
 
 class MainWindow(QMainWindow):
@@ -707,10 +729,12 @@ class MainWindow(QMainWindow):
         # Basic step types
         add_action_btn = QPushButton("Add Action Step")
         add_action_btn.clicked.connect(self._add_action_step)
+        add_action_btn.setToolTip(get_tooltip("add_action"))
         button_layout.addWidget(add_action_btn)
 
         add_script_btn = QPushButton("Add Script Step")
         add_script_btn.clicked.connect(self._add_script_step)
+        add_script_btn.setToolTip(get_tooltip("add_script"))
         button_layout.addWidget(add_script_btn)
 
         # Control flow step types
@@ -742,20 +766,24 @@ class MainWindow(QMainWindow):
         # Built-in actions
         add_mw_action_btn = QPushButton("Add Built-in Action")
         add_mw_action_btn.clicked.connect(self._add_mw_action_step)
+        add_mw_action_btn.setToolTip(get_tooltip("add_builtin"))
         button_layout.addWidget(add_mw_action_btn)
 
         button_layout.addWidget(QLabel())  # Spacer
 
         remove_btn = QPushButton("Remove Selected")
         remove_btn.clicked.connect(self._remove_selected_step)
+        remove_btn.setToolTip(get_tooltip("remove_step"))
         button_layout.addWidget(remove_btn)
 
         move_up_btn = QPushButton("Move Up")
         move_up_btn.clicked.connect(self._move_step_up)
+        move_up_btn.setToolTip(get_tooltip("move_up"))
         button_layout.addWidget(move_up_btn)
 
         move_down_btn = QPushButton("Move Down")
         move_down_btn.clicked.connect(self._move_step_down)
+        move_down_btn.setToolTip(get_tooltip("move_down"))
         button_layout.addWidget(move_down_btn)
 
         layout.addLayout(button_layout)
@@ -829,6 +857,31 @@ class MainWindow(QMainWindow):
 
         # Help menu
         help_menu = menubar.addMenu("Help")
+
+        help_action = QAction("Help Topics", self)
+        help_action.setShortcut("F1")
+        help_action.triggered.connect(self._show_help)
+        help_menu.addAction(help_action)
+
+        help_menu.addSeparator()
+
+        getting_started_action = QAction("Getting Started", self)
+        getting_started_action.triggered.connect(lambda: self._show_help_topic("Getting Started"))
+        help_menu.addAction(getting_started_action)
+
+        action_steps_action = QAction("Action Steps", self)
+        action_steps_action.triggered.connect(lambda: self._show_help_topic("Action Steps"))
+        help_menu.addAction(action_steps_action)
+
+        script_steps_action = QAction("Script Steps", self)
+        script_steps_action.triggered.connect(lambda: self._show_help_topic("Script Steps"))
+        help_menu.addAction(script_steps_action)
+
+        validation_action = QAction("Validation", self)
+        validation_action.triggered.connect(lambda: self._show_help_topic("Validation"))
+        help_menu.addAction(validation_action)
+
+        help_menu.addSeparator()
 
         about_action = QAction("About", self)
         about_action.triggered.connect(self._show_about)
@@ -1187,22 +1240,37 @@ class MainWindow(QMainWindow):
 
         errors = comprehensive_validate(self.workflow_list.workflow)
 
-        if errors:
-            error_text = "\n".join(errors)
-            QMessageBox.warning(
-                self, "Validation Errors",
-                f"Found {len(errors)} validation error(s):\n\n{error_text}"
-            )
-        else:
-            QMessageBox.information(self, "Validation", "✓ Workflow validation passed!")
+        # Show detailed validation dialog
+        dialog = ValidationDialog(errors, self)
+        dialog.exec()
+
+    def _show_help(self):
+        """Show the help dialog."""
+        if not hasattr(self, '_help_dialog') or self._help_dialog is None:
+            self._help_dialog = HelpDialog(self)
+        self._help_dialog.show()
+        self._help_dialog.raise_()
+        self._help_dialog.activateWindow()
+
+    def _show_help_topic(self, topic_title: str):
+        """Show help dialog with a specific topic."""
+        if not hasattr(self, '_help_dialog') or self._help_dialog is None:
+            self._help_dialog = HelpDialog(self)
+        self._help_dialog.show_topic(topic_title)
 
     def _show_about(self):
         """Show the about dialog."""
         QMessageBox.about(
             self, "About Moveworks YAML Assistant",
-            "Moveworks YAML Assistant v1.0\n\n"
+            "Moveworks YAML Assistant v2.0 (Phase 5)\n\n"
             "A desktop application for creating and managing\n"
             "Moveworks Compound Action workflows.\n\n"
+            "Features:\n"
+            "• Visual workflow builder\n"
+            "• JSON-driven data mapping\n"
+            "• Real-time validation\n"
+            "• Built-in action library\n"
+            "• Comprehensive help system\n\n"
             "Built with PySide6 and Python."
         )
 

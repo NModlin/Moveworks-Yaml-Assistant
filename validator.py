@@ -195,25 +195,78 @@ def validate_data_references(workflow: Workflow, initial_data_context: DataConte
         initial_inputs=initial_data_context.initial_inputs if initial_data_context else {}
     )
 
-    for i, step in enumerate(workflow.steps):
-        step_num = i + 1
+    def validate_data_reference(value: str, context_description: str, step_num: int) -> None:
+        """Helper function to validate a single data reference."""
+        if isinstance(value, str) and value.startswith('data.'):
+            # Extract the data path (remove 'data.' prefix)
+            data_path = value[5:]  # Remove 'data.'
+
+            if not running_context.is_path_available(data_path):
+                errors.append(
+                    f"Step {step_num}: {context_description} references "
+                    f"unavailable data path 'data.{data_path}'"
+                )
+
+    def validate_step_data_references(step, step_num: int) -> None:
+        """Recursively validate data references in a step and its nested steps."""
 
         # Check input_args for data references
         if hasattr(step, 'input_args') and step.input_args:
             for arg_name, arg_value in step.input_args.items():
-                if isinstance(arg_value, str) and arg_value.startswith('data.'):
-                    # Extract the data path (remove 'data.' prefix)
-                    data_path = arg_value[5:]  # Remove 'data.'
+                validate_data_reference(arg_value, f"input_args['{arg_name}']", step_num)
 
-                    if not running_context.is_path_available(data_path):
-                        errors.append(
-                            f"Step {step_num}: input_args['{arg_name}'] references "
-                            f"unavailable data path 'data.{data_path}'"
-                        )
+        # Check specific step type fields
+        if isinstance(step, SwitchStep):
+            # Validate conditions in switch cases
+            for i, case in enumerate(step.cases):
+                validate_data_reference(case.condition, f"switch case {i+1} condition", step_num)
+                # Recursively validate nested steps
+                for nested_step in case.steps:
+                    validate_step_data_references(nested_step, step_num)
+
+            # Validate default case
+            if step.default_case:
+                for nested_step in step.default_case.steps:
+                    validate_step_data_references(nested_step, step_num)
+
+        elif isinstance(step, ForLoopStep):
+            # Validate in_source for for loops
+            validate_data_reference(step.in_source, "for loop 'in' source", step_num)
+            # Recursively validate nested steps
+            for nested_step in step.steps:
+                validate_step_data_references(nested_step, step_num)
+
+        elif isinstance(step, ParallelStep):
+            # Recursively validate nested steps in parallel branches
+            for i, branch in enumerate(step.branches):
+                for nested_step in branch.steps:
+                    validate_step_data_references(nested_step, step_num)
+
+        elif isinstance(step, ReturnStep):
+            # Validate output_mapper values
+            for key, value in step.output_mapper.items():
+                validate_data_reference(value, f"return output_mapper['{key}']", step_num)
+
+        elif isinstance(step, TryCatchStep):
+            # Validate try steps
+            for nested_step in step.try_steps:
+                validate_step_data_references(nested_step, step_num)
+
+            # Validate catch steps
+            if step.catch_block:
+                for nested_step in step.catch_block.steps:
+                    validate_step_data_references(nested_step, step_num)
+
+    for i, step in enumerate(workflow.steps):
+        step_num = i + 1
+
+        # Validate this step's data references
+        validate_step_data_references(step, step_num)
 
         # Add this step's output to the running context for future steps
-        if step.output_key and step.output_key != '_' and step.parsed_json_output is not None:
-            running_context.add_step_output(step.output_key, step.parsed_json_output)
+        if hasattr(step, 'output_key') and step.output_key and step.output_key != '_':
+            if hasattr(step, 'parsed_json_output') and step.parsed_json_output is not None:
+                running_context.add_step_output(step.output_key, step.parsed_json_output)
 
     return errors
 
@@ -240,6 +293,102 @@ def validate_json_outputs(workflow: Workflow) -> List[str]:
     return errors
 
 
+def validate_action_names(workflow: Workflow) -> List[str]:
+    """
+    Validate action names for proper format and known actions.
+
+    Args:
+        workflow: The Workflow instance to validate
+
+    Returns:
+        List of action name validation errors
+    """
+    errors = []
+
+    for i, step in enumerate(workflow.steps):
+        step_num = i + 1
+
+        if isinstance(step, ActionStep) and step.action_name:
+            # Check for proper mw. prefix for built-in actions
+            if step.action_name.startswith('mw.'):
+                # Could add validation against known mw actions catalog here
+                if len(step.action_name) <= 3:  # Just "mw."
+                    errors.append(f"Step {step_num}: Invalid action name '{step.action_name}' - missing action after 'mw.'")
+
+            # Check for invalid characters
+            if any(char in step.action_name for char in [' ', '\t', '\n', '\r']):
+                errors.append(f"Step {step_num}: Action name '{step.action_name}' contains invalid whitespace characters")
+
+            # Check for empty or very short names
+            if len(step.action_name.strip()) < 2:
+                errors.append(f"Step {step_num}: Action name '{step.action_name}' is too short")
+
+    return errors
+
+
+def validate_output_key_format(workflow: Workflow) -> List[str]:
+    """
+    Validate output key formats and naming conventions.
+
+    Args:
+        workflow: The Workflow instance to validate
+
+    Returns:
+        List of output key format validation errors
+    """
+    errors = []
+
+    for i, step in enumerate(workflow.steps):
+        step_num = i + 1
+
+        if hasattr(step, 'output_key') and step.output_key and step.output_key != '_':
+            # Check for valid identifier format
+            if not step.output_key.replace('_', '').replace('-', '').isalnum():
+                errors.append(f"Step {step_num}: Output key '{step.output_key}' contains invalid characters")
+
+            # Check for reserved words
+            reserved_words = ['data', 'input', 'output', 'error', 'requestor', 'mw']
+            if step.output_key.lower() in reserved_words:
+                errors.append(f"Step {step_num}: Output key '{step.output_key}' is a reserved word")
+
+            # Check for starting with number
+            if step.output_key[0].isdigit():
+                errors.append(f"Step {step_num}: Output key '{step.output_key}' cannot start with a number")
+
+    return errors
+
+
+def validate_script_syntax(workflow: Workflow) -> List[str]:
+    """
+    Perform basic syntax validation on script code.
+
+    Args:
+        workflow: The Workflow instance to validate
+
+    Returns:
+        List of script syntax validation errors
+    """
+    errors = []
+
+    for i, step in enumerate(workflow.steps):
+        step_num = i + 1
+
+        if isinstance(step, ScriptStep) and step.code:
+            # Basic Python syntax check
+            try:
+                compile(step.code, f'<step_{step_num}_script>', 'exec')
+            except SyntaxError as e:
+                errors.append(f"Step {step_num}: Script syntax error - {str(e)}")
+            except Exception as e:
+                errors.append(f"Step {step_num}: Script compilation error - {str(e)}")
+
+            # Check for common APIthon patterns
+            if 'return' not in step.code:
+                errors.append(f"Step {step_num}: Script should contain a 'return' statement")
+
+    return errors
+
+
 def comprehensive_validate(workflow: Workflow, initial_data_context: DataContext = None) -> List[str]:
     """
     Perform comprehensive validation of a workflow.
@@ -259,8 +408,20 @@ def comprehensive_validate(workflow: Workflow, initial_data_context: DataContext
     # JSON output validation
     all_errors.extend(validate_json_outputs(workflow))
 
-    # Data reference validation (only if no structural errors)
-    if not all_errors:
+    # Action name validation
+    all_errors.extend(validate_action_names(workflow))
+
+    # Output key format validation
+    all_errors.extend(validate_output_key_format(workflow))
+
+    # Script syntax validation
+    all_errors.extend(validate_script_syntax(workflow))
+
+    # Data reference validation (only if no critical structural errors)
+    critical_error_keywords = ['missing required', 'Unknown step type', 'must contain at least one']
+    has_critical_errors = any(any(keyword in error for keyword in critical_error_keywords) for error in all_errors)
+
+    if not has_critical_errors:
         all_errors.extend(validate_data_references(workflow, initial_data_context))
 
     return all_errors
