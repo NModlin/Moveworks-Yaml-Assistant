@@ -7,7 +7,7 @@ structured and comply with Moveworks requirements.
 Based on Sections 8.1, 8.2, and 11.1 of the Source of Truth Document.
 """
 
-from typing import List, Set, Union
+from typing import List, Set, Union, Dict
 from core_structures import (
     Workflow, ActionStep, ScriptStep, DataContext, SwitchStep, ForLoopStep,
     ParallelStep, ReturnStep, SwitchCase, DefaultCase, ParallelBranch,
@@ -175,11 +175,60 @@ def validate_workflow(workflow: Workflow, initial_data_context: DataContext = No
     return all_errors
 
 
+def _infer_workflow_inputs(workflow: Workflow) -> Dict[str, str]:
+    """
+    Infer workflow input variables from data references in the workflow.
+
+    This function scans all data references in the workflow and identifies
+    variables that appear to be workflow inputs (not step outputs).
+
+    Args:
+        workflow: The Workflow instance to scan
+
+    Returns:
+        Dictionary of inferred input variables with placeholder values
+    """
+    inferred_inputs = {}
+    step_output_keys = set()
+
+    # First pass: collect all step output keys
+    for step in workflow.steps:
+        if hasattr(step, 'output_key') and step.output_key and step.output_key != '_':
+            step_output_keys.add(step.output_key)
+
+    def extract_data_references(obj):
+        """Recursively extract data references from nested structures."""
+        if isinstance(obj, str) and obj.startswith('data.'):
+            # Extract the top-level variable name
+            data_path = obj[5:]  # Remove 'data.' prefix
+            top_level_var = data_path.split('.')[0]
+
+            # If it's not a step output, it's likely a workflow input
+            if top_level_var not in step_output_keys:
+                # Use a placeholder value for validation
+                inferred_inputs[top_level_var] = f"<inferred_input_{top_level_var}>"
+        elif isinstance(obj, dict):
+            for value in obj.values():
+                extract_data_references(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                extract_data_references(item)
+
+    # Second pass: extract data references from all steps
+    for step in workflow.steps:
+        if hasattr(step, 'input_args') and step.input_args:
+            extract_data_references(step.input_args)
+
+    return inferred_inputs
+
+
 def validate_data_references(workflow: Workflow, initial_data_context: DataContext = None) -> List[str]:
     """
     Validate that all data references in input_args point to available data paths.
 
     This is an enhanced validation that checks if data.* references are valid.
+    For workflow input variables (like data.input_email), we infer them from usage
+    since they may not be explicitly defined in the initial context.
 
     Args:
         workflow: The Workflow instance to validate
@@ -191,9 +240,16 @@ def validate_data_references(workflow: Workflow, initial_data_context: DataConte
     errors = []
 
     # Create a running data context to track available data as we process steps
-    running_context = DataContext(
-        initial_inputs=initial_data_context.initial_inputs if initial_data_context else {}
-    )
+    # Start with any provided initial inputs
+    initial_inputs = initial_data_context.initial_inputs if initial_data_context else {}
+
+    # Infer workflow input variables from data references in the workflow
+    inferred_inputs = _infer_workflow_inputs(workflow)
+
+    # Combine explicit and inferred inputs
+    combined_inputs = {**initial_inputs, **inferred_inputs}
+
+    running_context = DataContext(initial_inputs=combined_inputs)
 
     def validate_data_reference(value: str, context_description: str, step_num: int) -> None:
         """Helper function to validate a single data reference."""
@@ -362,6 +418,8 @@ def validate_script_syntax(workflow: Workflow) -> List[str]:
     """
     Perform basic syntax validation on script code.
 
+    APIthon scripts are executed as function bodies, so 'return' statements are valid.
+
     Args:
         workflow: The Workflow instance to validate
 
@@ -374,16 +432,31 @@ def validate_script_syntax(workflow: Workflow) -> List[str]:
         step_num = i + 1
 
         if isinstance(step, ScriptStep) and step.code:
-            # Basic Python syntax check
+            # APIthon scripts are executed as function bodies, so we need to wrap them
+            # in a function definition for syntax validation
+            wrapped_code = f"def apiton_script():\n"
+            # Indent each line of the user's code
+            indented_code = '\n'.join(f"    {line}" for line in step.code.split('\n'))
+            wrapped_code += indented_code
+
+            syntax_error_found = False
             try:
-                compile(step.code, f'<step_{step_num}_script>', 'exec')
+                compile(wrapped_code, f'<step_{step_num}_script>', 'exec')
             except SyntaxError as e:
-                errors.append(f"Step {step_num}: Script syntax error - {str(e)}")
+                syntax_error_found = True
+                # Adjust line numbers in error messages since we wrapped the code
+                error_msg = str(e)
+                if hasattr(e, 'lineno') and e.lineno and e.lineno > 1:
+                    # Subtract 1 from line number to account for the function wrapper
+                    adjusted_lineno = e.lineno - 1
+                    error_msg = error_msg.replace(f"line {e.lineno}", f"line {adjusted_lineno}")
+                errors.append(f"Step {step_num}: Script syntax error - {error_msg}")
             except Exception as e:
+                syntax_error_found = True
                 errors.append(f"Step {step_num}: Script compilation error - {str(e)}")
 
-            # Check for common APIthon patterns
-            if 'return' not in step.code:
+            # Only check for return statement if there are no syntax errors
+            if not syntax_error_found and 'return' not in step.code:
                 errors.append(f"Step {step_num}: Script should contain a 'return' statement")
 
     return errors

@@ -30,6 +30,7 @@ from validator import comprehensive_validate
 from error_display import ErrorListWidget, ValidationDialog, StatusIndicator, HelpDialog
 from help_system import get_tooltip, get_contextual_help
 from tutorial_system import TutorialManager, TutorialDialog
+from integrated_tutorial_system import InteractiveTutorialManager
 from template_library import TemplateBrowserDialog, template_library
 from enhanced_json_selector import EnhancedJsonPathSelector
 from contextual_examples import ContextualExamplesPanel
@@ -189,11 +190,52 @@ class StepConfigurationPanel(QStackedWidget):
 
         # Buttons for input args
         input_args_buttons = QHBoxLayout()
-        add_arg_btn = QPushButton("Add Argument")
-        add_arg_btn.clicked.connect(self._add_action_input_arg)
+        self.add_input_arg_btn = QPushButton("Add Argument")  # Store as attribute for tutorial
+        self.add_input_arg_btn.setObjectName("add_input_arg_btn")  # For tutorial targeting
+        self.add_input_arg_btn.clicked.connect(self._add_action_input_arg)
+
+        # Apply high contrast styling for readability
+        self.add_input_arg_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196f3;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+            QPushButton:pressed {
+                background-color: #0d47a1;
+            }
+        """)
+
         remove_arg_btn = QPushButton("Remove Selected")
         remove_arg_btn.clicked.connect(self._remove_action_input_arg)
-        input_args_buttons.addWidget(add_arg_btn)
+
+        # Apply consistent styling to remove button
+        remove_arg_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
+
+        input_args_buttons.addWidget(self.add_input_arg_btn)
         input_args_buttons.addWidget(remove_arg_btn)
         input_args_buttons.addStretch()
         input_args_layout.addLayout(input_args_buttons)
@@ -205,14 +247,36 @@ class StepConfigurationPanel(QStackedWidget):
         json_layout = QVBoxLayout(json_group)
 
         self.action_json_edit = QTextEdit()
+        self.action_json_edit.setObjectName("json_output_edit")  # For tutorial targeting
         self.action_json_edit.setPlaceholderText("Paste the JSON output this action will produce...")
         self.action_json_edit.setToolTip(get_tooltip("json_output"))
         json_layout.addWidget(self.action_json_edit)
 
-        parse_json_btn = QPushButton("Parse & Save JSON Output")
-        parse_json_btn.clicked.connect(self._parse_action_json)
-        parse_json_btn.setToolTip(get_tooltip("parse_json"))
-        json_layout.addWidget(parse_json_btn)
+        self.parse_json_btn = QPushButton("Parse & Save JSON Output")  # Store as attribute for tutorial
+        self.parse_json_btn.setObjectName("parse_json_btn")  # For tutorial targeting
+        self.parse_json_btn.clicked.connect(self._parse_action_json)
+        self.parse_json_btn.setToolTip(get_tooltip("parse_json"))
+
+        # Apply high contrast styling for readability
+        self.parse_json_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: #ffffff;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #388e3c;
+            }
+            QPushButton:pressed {
+                background-color: #2e7d32;
+            }
+        """)
+
+        json_layout.addWidget(self.parse_json_btn)
 
         layout.addWidget(json_group)
 
@@ -246,6 +310,7 @@ class StepConfigurationPanel(QStackedWidget):
         code_layout = QVBoxLayout(code_group)
 
         self.script_code_edit = QTextEdit()
+        self.script_code_edit.setObjectName("script_code_edit")  # For tutorial targeting
         self.script_code_edit.setPlaceholderText("Enter your APIthon script code here...\n\n# Example:\nuser_name = data.user_info.user.name\nresult = {'greeting': f'Hello, {user_name}!'}\nreturn result")
         self.script_code_edit.setToolTip(get_tooltip("script_code"))
         font = QFont("Consolas", 10)
@@ -708,11 +773,128 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Moveworks YAML Assistant")
         self.setGeometry(100, 100, 1400, 900)
 
-        # Set main window styling
+        # Set comprehensive application styling
         self.setStyleSheet("""
+            /* Main Window */
             QMainWindow {
                 background-color: #f5f5f5;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                font-size: 13px;
+                color: #2c3e50;
             }
+
+            /* Menu Bar - High Contrast */
+            QMenuBar {
+                background-color: #2c3e50;
+                color: #ffffff;
+                font-size: 14px;
+                font-weight: 500;
+                padding: 4px;
+                border: none;
+            }
+            QMenuBar::item {
+                background-color: transparent;
+                color: #ffffff;
+                padding: 8px 12px;
+                margin: 0px 2px;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QMenuBar::item:selected {
+                background-color: #34495e;
+                color: #ffffff;
+            }
+            QMenuBar::item:pressed {
+                background-color: #3498db;
+                color: #ffffff;
+            }
+
+            /* Menu Dropdowns - High Contrast */
+            QMenu {
+                background-color: #ffffff;
+                color: #2c3e50;
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                padding: 4px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QMenu::item {
+                background-color: transparent;
+                color: #2c3e50;
+                padding: 8px 16px;
+                margin: 1px;
+                border-radius: 4px;
+                font-weight: 500;
+            }
+            QMenu::item:selected {
+                background-color: #3498db;
+                color: #ffffff;
+            }
+            QMenu::item:disabled {
+                color: #95a5a6;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #bdc3c7;
+                margin: 4px 8px;
+            }
+
+            /* Dialog Boxes - High Contrast */
+            QDialog {
+                background-color: #ffffff;
+                color: #2c3e50;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QDialog QLabel {
+                color: #2c3e50;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QDialog QPushButton {
+                background-color: #3498db;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 20px;
+                font-size: 13px;
+                font-weight: 600;
+                min-height: 20px;
+            }
+            QDialog QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QDialog QPushButton:pressed {
+                background-color: #21618c;
+            }
+
+            /* Message Boxes - High Contrast */
+            QMessageBox {
+                background-color: #ffffff;
+                color: #2c3e50;
+                font-size: 14px;
+                font-weight: 500;
+            }
+            QMessageBox QLabel {
+                color: #2c3e50;
+                font-size: 14px;
+                font-weight: 500;
+                padding: 10px;
+            }
+            QMessageBox QPushButton {
+                background-color: #3498db;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 20px;
+                font-size: 13px;
+                font-weight: 600;
+                min-width: 80px;
+                min-height: 25px;
+            }
+
+            /* Splitter Handles */
             QSplitter::handle {
                 background-color: #e0e0e0;
                 border: 1px solid #c0c0c0;
@@ -723,10 +905,240 @@ class MainWindow(QMainWindow):
             QSplitter::handle:vertical {
                 height: 3px;
             }
+
+            /* General Text Elements - High Contrast */
+            QLabel {
+                color: #2c3e50;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QTextEdit {
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 1px solid #bdc3c7;
+                border-radius: 4px;
+                padding: 8px;
+            }
+            QLineEdit {
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 1px solid #bdc3c7;
+                border-radius: 4px;
+                padding: 8px;
+            }
+
+            /* Tooltips - High Contrast */
+            QToolTip {
+                background-color: #2c3e50;
+                color: #ffffff;
+                border: 1px solid #34495e;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+
+            /* Tab Widgets - High Contrast */
+            QTabWidget::pane {
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                background-color: #ffffff;
+                padding: 4px;
+            }
+            QTabBar::tab {
+                background-color: #ecf0f1;
+                color: #2c3e50;
+                border: 1px solid #bdc3c7;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-size: 13px;
+                font-weight: 600;
+                min-width: 80px;
+            }
+            QTabBar::tab:selected {
+                background-color: #3498db;
+                color: #ffffff;
+                border-bottom-color: #3498db;
+            }
+            QTabBar::tab:hover {
+                background-color: #d5dbdb;
+                color: #2c3e50;
+            }
+
+            /* Group Boxes - High Contrast */
+            QGroupBox {
+                color: #2c3e50;
+                font-size: 14px;
+                font-weight: 600;
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+                background-color: #ffffff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                color: #2c3e50;
+                background-color: #ffffff;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: 600;
+                font-size: 14px;
+            }
+
+            /* List Widgets - High Contrast */
+            QListWidget {
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QListWidget::item {
+                color: #2c3e50;
+                padding: 8px;
+                border-bottom: 1px solid #ecf0f1;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: #ffffff;
+            }
+            QListWidget::item:hover {
+                background-color: #ebf3fd;
+                color: #2c3e50;
+            }
+
+            /* Tree Widgets - High Contrast */
+            QTreeWidget {
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QTreeWidget::item {
+                color: #2c3e50;
+                padding: 4px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QTreeWidget::item:selected {
+                background-color: #3498db;
+                color: #ffffff;
+            }
+            QTreeWidget::item:hover {
+                background-color: #ebf3fd;
+                color: #2c3e50;
+            }
+            QTreeWidget::branch {
+                color: #2c3e50;
+            }
+
+            /* Combo Boxes - High Contrast */
+            QComboBox {
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                padding: 6px 10px;
+                min-height: 20px;
+                font-weight: 500;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #2c3e50;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                color: #2c3e50;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                selection-background-color: #3498db;
+                selection-color: #ffffff;
+                font-size: 13px;
+                font-weight: 500;
+            }
+
+            /* Table Widgets - High Contrast */
+            QTableWidget {
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                gridline-color: #ecf0f1;
+            }
+            QTableWidget::item {
+                color: #2c3e50;
+                padding: 8px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QTableWidget::item:selected {
+                background-color: #3498db;
+                color: #ffffff;
+            }
+            QTableWidget::item:hover {
+                background-color: #ebf3fd;
+                color: #2c3e50;
+            }
+            QHeaderView::section {
+                background-color: #ecf0f1;
+                color: #2c3e50;
+                padding: 8px;
+                border: 1px solid #bdc3c7;
+                font-size: 13px;
+                font-weight: 600;
+            }
+
+            /* Scroll Bars - High Contrast */
+            QScrollBar:vertical {
+                background-color: #ecf0f1;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #bdc3c7;
+                border-radius: 6px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #95a5a6;
+            }
+            QScrollBar:horizontal {
+                background-color: #ecf0f1;
+                height: 12px;
+                border-radius: 6px;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #bdc3c7;
+                border-radius: 6px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #95a5a6;
+            }
         """)
 
-        # Initialize tutorial manager
+        # Initialize tutorial managers
         self.tutorial_manager = TutorialManager(self)
+        self.interactive_tutorial_manager = InteractiveTutorialManager(self)
 
         # Create central widget and main layout
         central_widget = QWidget()
@@ -843,17 +1255,19 @@ class MainWindow(QMainWindow):
         """
 
         # Basic step types
-        add_action_btn = QPushButton("➕ Add Action Step")
-        add_action_btn.clicked.connect(self._add_action_step)
-        add_action_btn.setToolTip(get_tooltip("add_action"))
-        add_action_btn.setStyleSheet(button_style)
-        button_layout.addWidget(add_action_btn)
+        self.add_action_btn = QPushButton("➕ Add Action Step")
+        self.add_action_btn.setObjectName("add_action_btn")
+        self.add_action_btn.clicked.connect(self._add_action_step)
+        self.add_action_btn.setToolTip(get_tooltip("add_action"))
+        self.add_action_btn.setStyleSheet(button_style)
+        button_layout.addWidget(self.add_action_btn)
 
-        add_script_btn = QPushButton("📝 Add Script Step")
-        add_script_btn.clicked.connect(self._add_script_step)
-        add_script_btn.setToolTip(get_tooltip("add_script"))
-        add_script_btn.setStyleSheet(button_style)
-        button_layout.addWidget(add_script_btn)
+        self.add_script_btn = QPushButton("📝 Add Script Step")
+        self.add_script_btn.setObjectName("add_script_btn")
+        self.add_script_btn.clicked.connect(self._add_script_step)
+        self.add_script_btn.setToolTip(get_tooltip("add_script"))
+        self.add_script_btn.setStyleSheet(button_style)
+        button_layout.addWidget(self.add_script_btn)
 
         # Control flow step types
         control_flow_style = button_style.replace("#2196f3", "#4caf50").replace("#1976d2", "#388e3c").replace("#0d47a1", "#2e7d32")
@@ -935,35 +1349,38 @@ class MainWindow(QMainWindow):
 
     def _create_center_panel(self):
         """Create the center panel with step configuration and examples."""
-        # Create tab widget for center panel
+        # Create tab widget for center panel with high contrast styling
         center_tabs = QTabWidget()
         center_tabs.setStyleSheet("""
             QTabWidget::pane {
-                border: 1px solid #c0c0c0;
-                background-color: #f8f8f8;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                background-color: #ffffff;
+                padding: 4px;
             }
             QTabWidget::tab-bar {
                 alignment: center;
             }
             QTabBar::tab {
-                background-color: #e0e0e0;
-                border: 1px solid #c0c0c0;
+                background-color: #ecf0f1;
+                color: #2c3e50;
+                border: 1px solid #bdc3c7;
                 padding: 8px 16px;
                 margin-right: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
                 font-size: 13px;
-                font-weight: bold;
-                color: #333333;
+                font-weight: 600;
+                min-width: 80px;
             }
             QTabBar::tab:selected {
-                background-color: #f8f8f8;
-                border-bottom-color: #f8f8f8;
-                color: #4caf50;
+                background-color: #4caf50;
+                color: #ffffff;
+                border-bottom-color: #4caf50;
             }
             QTabBar::tab:hover {
-                background-color: #e8f5e8;
-                color: #388e3c;
+                background-color: #c8e6c9;
+                color: #2c3e50;
             }
         """)
 
@@ -1010,35 +1427,38 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
-        # Create main tab widget for the right panel
+        # Create main tab widget for the right panel with high contrast styling
         right_tabs = QTabWidget()
         right_tabs.setStyleSheet("""
             QTabWidget::pane {
-                border: 1px solid #c0c0c0;
-                background-color: #f8f8f8;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                background-color: #ffffff;
+                padding: 4px;
             }
             QTabWidget::tab-bar {
                 alignment: center;
             }
             QTabBar::tab {
-                background-color: #e0e0e0;
-                border: 1px solid #c0c0c0;
+                background-color: #ecf0f1;
+                color: #2c3e50;
+                border: 1px solid #bdc3c7;
                 padding: 8px 16px;
                 margin-right: 2px;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
                 font-size: 13px;
-                font-weight: bold;
-                color: #333333;
+                font-weight: 600;
+                min-width: 80px;
             }
             QTabBar::tab:selected {
-                background-color: #f8f8f8;
-                border-bottom-color: #f8f8f8;
-                color: #2196f3;
+                background-color: #3498db;
+                color: #ffffff;
+                border-bottom-color: #3498db;
             }
             QTabBar::tab:hover {
-                background-color: #e3f2fd;
-                color: #1976d2;
+                background-color: #d5dbdb;
+                color: #2c3e50;
             }
         """)
 
@@ -1169,10 +1589,18 @@ class MainWindow(QMainWindow):
 
         tools_menu.addSeparator()
 
-        # Interactive tutorials
-        tutorial_action = QAction("Interactive Tutorials...", self)
-        tutorial_action.triggered.connect(self._show_tutorials)
-        tools_menu.addAction(tutorial_action)
+        # Tutorial submenu
+        tutorials_submenu = tools_menu.addMenu("📚 Tutorials")
+
+        interactive_tutorial_action = QAction("🎯 Interactive Basic Workflow", self)
+        interactive_tutorial_action.triggered.connect(self._start_interactive_tutorial)
+        tutorials_submenu.addAction(interactive_tutorial_action)
+
+        tutorials_submenu.addSeparator()
+
+        all_tutorials_action = QAction("📖 All Tutorials...", self)
+        all_tutorials_action.triggered.connect(self._show_tutorials)
+        tutorials_submenu.addAction(all_tutorials_action)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -1579,6 +2007,10 @@ class MainWindow(QMainWindow):
                 self._update_all_panels()
 
                 QMessageBox.information(self, "Success", f"Template '{template.name}' loaded successfully!")
+
+    def _start_interactive_tutorial(self):
+        """Start the interactive basic workflow tutorial."""
+        self.interactive_tutorial_manager.start_tutorial("interactive_basic")
 
     def _show_tutorials(self):
         """Show the tutorial selection dialog."""

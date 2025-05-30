@@ -22,7 +22,7 @@ from PySide6.QtGui import QFont
 # Import our components
 from collapsible_widget import CollapsibleContainer, CollapsibleSection
 from enhanced_json_selector import (
-    VisualDesignConstants, DraggableJsonTree, JsonPathPreviewWidget,
+    VisualDesignConstants, JsonTreeWidget, JsonPathPreviewWidget,
     PathBookmarkManager, IntelligentPathSuggester
 )
 from core_structures import Workflow
@@ -427,7 +427,7 @@ class TabbedJsonPathSelector(QWidget):
         explorer_layout.setSpacing(8)
 
         # JSON tree
-        self.json_tree = DraggableJsonTree()
+        self.json_tree = JsonTreeWidget()
         self.json_tree.setStyleSheet(f"""
             QTreeWidget {{
                 font-family: {VisualDesignConstants.MONOSPACE_FONT};
@@ -675,15 +675,30 @@ class TabbedJsonPathSelector(QWidget):
         # Search
         self.search_edit.textChanged.connect(self._on_search_changed)
 
-        # JSON tree selection
+        # JSON tree selection - connect to the proper path_selected signal
+        self.json_tree.path_selected.connect(self._on_path_selected_from_tree)
+        # Also keep the item click for additional handling
         self.json_tree.itemClicked.connect(self._on_tree_item_clicked)
 
     def _on_step_changed(self, index):
         """Handle step selection change."""
-        if self.workflow and 0 <= index < len(self.workflow.steps):
+        logger.debug(f"_on_step_changed called with index: {index}")
+
+        if not self.workflow:
+            logger.debug("No workflow available for step change")
+            return
+
+        if 0 <= index < len(self.workflow.steps):
+            logger.debug(f"Setting current step index to: {index}")
             self.current_step_index = index
             self._update_json_tree()
             self.step_changed.emit(index)
+        else:
+            logger.debug(f"Invalid step index: {index} for workflow with {len(self.workflow.steps)} steps")
+            # Clear the tree for invalid selections
+            self.json_tree.populate_from_json({}, "data")
+            self.step_status.setText("Invalid step selection")
+            self.step_status.setStyleSheet(f"color: {VisualDesignConstants.ERROR_COLOR};")
 
     def _on_search_changed(self, text):
         """Handle search text change."""
@@ -692,11 +707,18 @@ class TabbedJsonPathSelector(QWidget):
             self.json_tree.filter_items(text)
 
     def _on_tree_item_clicked(self, item, column):
-        """Handle JSON tree item click."""
-        if hasattr(item, 'path'):
-            self.selected_path = item.path
-            self.path_display.setText(self.selected_path)
-            self.path_selected.emit(self.selected_path)
+        """Handle JSON tree item click - for additional processing."""
+        _ = column  # Unused parameter
+        # The actual path selection is handled by _on_path_selected_from_tree
+        # This method can be used for additional click handling if needed
+        logger.debug(f"Tree item clicked: {item.text(0) if item else 'None'}")
+
+    def _on_path_selected_from_tree(self, path):
+        """Handle path selection from the JSON tree."""
+        logger.debug(f"Path selected from tree: {path}")
+        self.selected_path = path
+        self.path_display.setText(self.selected_path)
+        self.path_selected.emit(self.selected_path)
 
     def _copy_selected_path(self):
         """Copy the selected path to clipboard."""
@@ -717,15 +739,40 @@ class TabbedJsonPathSelector(QWidget):
 
     def _update_json_tree(self):
         """Update the JSON tree with current step data."""
-        if not self.workflow or self.current_step_index >= len(self.workflow.steps):
+        logger.debug(f"_update_json_tree called for step index: {self.current_step_index}")
+
+        if not self.workflow:
+            logger.debug("No workflow available")
+            self.json_tree.populate_from_json({}, "data")
+            self.step_status.setText("No workflow loaded")
+            self.step_status.setStyleSheet(f"color: {VisualDesignConstants.WARNING_COLOR};")
+            return
+
+        if self.current_step_index >= len(self.workflow.steps):
+            logger.debug(f"Step index {self.current_step_index} out of range for {len(self.workflow.steps)} steps")
+            self.json_tree.populate_from_json({}, "data")
+            self.step_status.setText("Invalid step selection")
+            self.step_status.setStyleSheet(f"color: {VisualDesignConstants.ERROR_COLOR};")
             return
 
         step = self.workflow.steps[self.current_step_index]
+        step_name = getattr(step, 'description', f'Step {self.current_step_index + 1}')
+
         if hasattr(step, 'parsed_json_output') and step.parsed_json_output:
-            if hasattr(self.json_tree, 'populate_from_json'):
-                output_key = getattr(step, 'output_key', f'step_{self.current_step_index}')
-                data = {output_key: step.parsed_json_output}
-                self.json_tree.populate_from_json(data, "data")
+            logger.debug(f"Found parsed JSON output for step: {step_name}")
+            output_key = getattr(step, 'output_key', f'step_{self.current_step_index}')
+            data = {output_key: step.parsed_json_output}
+            self.json_tree.populate_from_json(data, "data")
+
+            # Update status with success message
+            item_count = len(step.parsed_json_output) if isinstance(step.parsed_json_output, (dict, list)) else 1
+            self.step_status.setText(f"✅ Loaded {step_name} ({item_count} items)")
+            self.step_status.setStyleSheet(f"color: {VisualDesignConstants.SUCCESS_COLOR};")
+        else:
+            logger.debug(f"No parsed JSON output for step: {step_name}")
+            self.json_tree.populate_from_json({}, "data")
+            self.step_status.setText(f"⚠️ {step_name} has no JSON output")
+            self.step_status.setStyleSheet(f"color: {VisualDesignConstants.WARNING_COLOR};")
 
     def set_workflow(self, workflow, current_step_index=0):
         """Set the workflow and update the UI."""

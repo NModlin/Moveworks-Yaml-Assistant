@@ -30,9 +30,13 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
 
     if isinstance(step, ActionStep):
         # Create action dict following yaml_syntex.md format
+        # Use default values for empty required fields to prevent validation errors
+        action_name = step.action_name if step.action_name and step.action_name.strip() else ''
+        output_key = step.output_key if step.output_key and step.output_key.strip() else ''
+
         action_dict = {
-            'action_name': step.action_name,
-            'output_key': step.output_key
+            'action_name': action_name,
+            'output_key': output_key
         }
 
         # Add optional fields in the correct order
@@ -49,8 +53,12 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
 
     elif isinstance(step, ScriptStep):
         # Create script dict following yaml_syntex.md format
+        # Use default values for empty required fields to prevent validation errors
+        output_key = step.output_key if step.output_key and step.output_key.strip() else ''
+        code = step.code if step.code and step.code.strip() else ''
+
         script_dict = {
-            'output_key': step.output_key
+            'output_key': output_key
         }
 
         # Add input_args before code if present
@@ -58,7 +66,7 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
             script_dict['input_args'] = step.input_args
 
         # Add code field
-        script_dict['code'] = step.code
+        script_dict['code'] = code
 
         step_dict['script'] = script_dict
 

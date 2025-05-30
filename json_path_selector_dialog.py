@@ -76,10 +76,76 @@ class JsonPathSelectorDialog(QDialog):
                                  VisualDesignConstants.UNIFORM_MARGIN * 2)
         layout.setSpacing(VisualDesignConstants.SECTION_SPACING)
 
-        # Apply dialog styling
+        # Apply comprehensive dialog styling with high contrast
         self.setStyleSheet(f"""
             QDialog {{
-                background-color: {VisualDesignConstants.LIGHT_BACKGROUND};
+                background-color: #ffffff;
+                color: #2c3e50;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QLabel {{
+                color: #2c3e50;
+                font-size: 14px;
+                font-weight: 600;
+            }}
+            QGroupBox {{
+                color: #2c3e50;
+                font-size: 14px;
+                font-weight: 600;
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                color: #2c3e50;
+                background-color: #ffffff;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: 600;
+            }}
+            QPushButton {{
+                background-color: #3498db;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
+                font-size: 13px;
+                font-weight: 600;
+                min-height: 25px;
+            }}
+            QPushButton:hover {{
+                background-color: #2980b9;
+            }}
+            QPushButton:pressed {{
+                background-color: #21618c;
+            }}
+            QTextEdit, QLineEdit {{
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                padding: 8px;
+            }}
+            QTreeWidget {{
+                color: #2c3e50;
+                font-size: 13px;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+            }}
+            QTreeWidget::item {{
+                color: #2c3e50;
+                padding: 4px;
+            }}
+            QTreeWidget::item:selected {{
+                background-color: #3498db;
+                color: #ffffff;
             }}
         """)
 
