@@ -12,7 +12,7 @@ from typing import Dict, Any, List
 from core_structures import (
     Workflow, ActionStep, ScriptStep, SwitchStep, ForLoopStep,
     ParallelStep, ReturnStep, SwitchCase, DefaultCase, ParallelBranch,
-    RaiseStep, TryCatchStep, CatchBlock
+    RaiseStep, TryCatchStep, CatchBlock, ParallelForLoop
 )
 
 
@@ -29,34 +29,38 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
     step_dict = {}
 
     if isinstance(step, ActionStep):
-        # Required fields for action steps
-        step_dict['action_name'] = step.action_name
-        step_dict['output_key'] = step.output_key
+        # Create action dict following yaml_syntex.md format
+        action_dict = {
+            'action_name': step.action_name,
+            'output_key': step.output_key
+        }
 
-        # Optional fields - only include if not empty
-        if step.description:
-            step_dict['description'] = step.description
-
+        # Add optional fields in the correct order
         if step.input_args:
-            step_dict['input_args'] = step.input_args
-
-        if step.progress_updates:
-            step_dict['progress_updates'] = step.progress_updates
+            action_dict['input_args'] = step.input_args
 
         if step.delay_config:
-            step_dict['delay_config'] = step.delay_config
+            action_dict['delay_config'] = step.delay_config
+
+        if step.progress_updates:
+            action_dict['progress_updates'] = step.progress_updates
+
+        step_dict['action'] = action_dict
 
     elif isinstance(step, ScriptStep):
-        # Required fields for script steps
-        step_dict['code'] = step.code
-        step_dict['output_key'] = step.output_key
+        # Create script dict following yaml_syntex.md format
+        script_dict = {
+            'output_key': step.output_key
+        }
 
-        # Optional fields - only include if not empty
-        if step.description:
-            step_dict['description'] = step.description
-
+        # Add input_args before code if present
         if step.input_args:
-            step_dict['input_args'] = step.input_args
+            script_dict['input_args'] = step.input_args
+
+        # Add code field
+        script_dict['code'] = step.code
+
+        step_dict['script'] = script_dict
 
     elif isinstance(step, SwitchStep):
         step_dict['switch'] = {}
@@ -83,70 +87,98 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
             step_dict['output_key'] = step.output_key
 
     elif isinstance(step, ForLoopStep):
-        step_dict['for'] = {
-            'each': step.each,
-            'in': step.in_source,
-            'output_key': step.output_key,
-            'steps': [step_to_yaml_dict(nested_step) for nested_step in step.steps]
+        # Create for loop dict following yaml_syntex.md format
+        for_dict = {
+            'each': step.each
         }
 
-        # Add optional index
+        # Add index if present
         if step.index:
-            step_dict['for']['index'] = step.index
+            for_dict['index'] = step.index
+
+        for_dict['in'] = step.in_source
+        for_dict['output_key'] = step.output_key
+
+        # Add steps
+        if step.steps:
+            for_dict['steps'] = [step_to_yaml_dict(nested_step) for nested_step in step.steps]
+
+        step_dict['for'] = for_dict
 
     elif isinstance(step, ParallelStep):
-        step_dict['parallel'] = {
-            'branches': []
-        }
+        parallel_dict = {}
 
-        for branch in step.branches:
-            branch_dict = {
-                'steps': [step_to_yaml_dict(nested_step) for nested_step in branch.steps]
+        # Handle parallel for loop mode
+        if step.for_loop:
+            for_config = {
+                'each': step.for_loop.each,
+                'in': step.for_loop.in_source
             }
-            if branch.name:
-                branch_dict['name'] = branch.name
-            step_dict['parallel']['branches'].append(branch_dict)
 
-        # Add output_key if not default
-        if step.output_key != "_":
-            step_dict['output_key'] = step.output_key
+            if step.for_loop.index_key:
+                for_config['index_key'] = step.for_loop.index_key
+
+            for_config['output_key'] = step.for_loop.output_key
+
+            if step.for_loop.steps:
+                for_config['steps'] = [step_to_yaml_dict(nested_step) for nested_step in step.for_loop.steps]
+
+            parallel_dict['for'] = for_config
+
+        # Handle parallel branches mode
+        elif step.branches:
+            branches_list = []
+            for branch in step.branches:
+                branch_dict = {
+                    'steps': [step_to_yaml_dict(nested_step) for nested_step in branch.steps]
+                }
+                if branch.name:
+                    branch_dict['name'] = branch.name
+                branches_list.append(branch_dict)
+            parallel_dict['branches'] = branches_list
+
+        step_dict['parallel'] = parallel_dict
 
     elif isinstance(step, ReturnStep):
-        step_dict['return'] = step.output_mapper
-
-        # Add output_key if not default
-        if step.output_key != "_":
-            step_dict['output_key'] = step.output_key
+        # Create return dict following yaml_syntex.md format
+        if step.output_mapper:
+            step_dict['return'] = {'output_mapper': step.output_mapper}
+        else:
+            step_dict['return'] = {}
 
     elif isinstance(step, RaiseStep):
-        step_dict['raise'] = {}
+        # Create raise dict following yaml_syntex.md format
+        raise_dict = {}
 
-        # Add message if provided
+        if step.output_key and step.output_key != "_":
+            raise_dict['output_key'] = step.output_key
+
         if step.message:
-            step_dict['raise']['message'] = step.message
+            raise_dict['message'] = step.message
 
-        # Add output_key if not default
-        if step.output_key != "_":
-            step_dict['output_key'] = step.output_key
+        step_dict['raise'] = raise_dict
 
     elif isinstance(step, TryCatchStep):
-        step_dict['try'] = {
-            'steps': [step_to_yaml_dict(nested_step) for nested_step in step.try_steps]
+        # Create try_catch dict following yaml_syntex.md format
+        try_catch_dict = {
+            'try': {
+                'steps': [step_to_yaml_dict(nested_step) for nested_step in step.try_steps]
+            }
         }
 
         # Add catch block if present
         if step.catch_block:
-            step_dict['catch'] = {
-                'steps': [step_to_yaml_dict(nested_step) for nested_step in step.catch_block.steps]
-            }
+            catch_dict = {}
 
-            # Add catch block description if provided
-            if step.catch_block.description:
-                step_dict['catch']['description'] = step.catch_block.description
+            # Add on_status_code if present
+            if step.catch_block.on_status_code:
+                catch_dict['on_status_code'] = step.catch_block.on_status_code
 
-        # Add output_key if not default
-        if step.output_key != "_":
-            step_dict['output_key'] = step.output_key
+            catch_dict['steps'] = [step_to_yaml_dict(nested_step) for nested_step in step.catch_block.steps]
+
+            try_catch_dict['catch'] = catch_dict
+
+        step_dict['try_catch'] = try_catch_dict
 
     return step_dict
 
@@ -154,6 +186,10 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
 def workflow_to_yaml_dict(workflow: Workflow) -> Dict[str, Any]:
     """
     Convert a Workflow instance into a Python dictionary suitable for YAML serialization.
+
+    Following yaml_syntex.md format:
+    - Single expression: no 'steps' wrapper
+    - Multiple expressions: wrapped in 'steps' list
 
     Args:
         workflow: The Workflow instance to convert
@@ -168,7 +204,13 @@ def workflow_to_yaml_dict(workflow: Workflow) -> Dict[str, Any]:
         if step_dict:  # Only add non-empty step dictionaries
             steps_list.append(step_dict)
 
-    return {'steps': steps_list}
+    # Handle single expression vs multiple expressions
+    if len(steps_list) == 1:
+        # Single expression - return without 'steps' wrapper
+        return steps_list[0]
+    else:
+        # Multiple expressions - wrap in 'steps' list
+        return {'steps': steps_list}
 
 
 def generate_yaml_string(workflow: Workflow) -> str:

@@ -157,18 +157,46 @@ class ParallelBranch:
 
 
 @dataclass
+class ParallelForLoop:
+    """
+    Represents a parallel for loop configuration.
+
+    Attributes:
+        each: Variable name for the current item
+        index_key: Variable name for the current index
+        in_source: Data path to the array to iterate over
+        output_key: Output key for the parallel loop results
+        steps: List of steps to execute for each iteration in parallel
+    """
+    each: str = ""
+    index_key: Optional[str] = None
+    in_source: str = ""
+    output_key: str = ""
+    steps: List[Union['ActionStep', 'ScriptStep', 'SwitchStep', 'ForLoopStep', 'ParallelStep', 'ReturnStep']] = field(default_factory=list)
+
+
+@dataclass
 class ParallelStep:
     """
     Represents a parallel execution control flow step.
 
     Attributes:
         description: Optional description of the parallel step
-        branches: List of ParallelBranch instances to execute in parallel
+        branches: List of ParallelBranch instances to execute in parallel (for branches mode)
+        for_loop: ParallelForLoop configuration (for parallel for loop mode)
         output_key: Output key for the parallel results (usually '_')
     """
     description: Optional[str] = None
-    branches: List[ParallelBranch] = field(default_factory=list)
+    branches: Optional[List[ParallelBranch]] = None
+    for_loop: Optional[ParallelForLoop] = None
     output_key: str = "_"
+
+    def __post_init__(self):
+        """Ensure either branches or for_loop is set, but not both."""
+        if self.branches is None and self.for_loop is None:
+            self.branches = []
+        elif self.branches is not None and self.for_loop is not None:
+            raise ValueError("ParallelStep cannot have both branches and for_loop set")
 
 
 @dataclass
@@ -208,9 +236,11 @@ class CatchBlock:
 
     Attributes:
         description: Optional description of the catch block
+        on_status_code: Optional list of status codes that trigger this catch block
         steps: List of steps to execute when an error is caught
     """
     description: Optional[str] = None
+    on_status_code: Optional[List[str]] = None
     steps: List[Union['ActionStep', 'ScriptStep', 'SwitchStep', 'ForLoopStep', 'ParallelStep', 'ReturnStep', 'RaiseStep']] = field(default_factory=list)
 
 
@@ -223,11 +253,13 @@ class TryCatchStep:
         description: Optional description of the try/catch step
         try_steps: List of steps to execute in the try block
         catch_block: Catch block to execute if an error occurs
+        on_status_code: Optional list of status codes that trigger the catch block
         output_key: Output key for the try/catch result
     """
     description: Optional[str] = None
     try_steps: List[Union['ActionStep', 'ScriptStep', 'SwitchStep', 'ForLoopStep', 'ParallelStep', 'ReturnStep', 'RaiseStep']] = field(default_factory=list)
     catch_block: Optional[CatchBlock] = None
+    on_status_code: Optional[List[str]] = None
     output_key: str = "_"
 
 
@@ -247,18 +279,31 @@ class DataContext:
     Manages the data context for a Moveworks Compound Action workflow.
 
     This class simulates the 'data' object that tracks input variables and
-    output keys from executed steps.
+    output keys from executed steps, as well as meta_info for user context.
     """
 
-    def __init__(self, initial_inputs: Optional[Dict[str, Any]] = None):
+    def __init__(self, initial_inputs: Optional[Dict[str, Any]] = None, meta_info: Optional[Dict[str, Any]] = None):
         """
         Initialize the DataContext.
 
         Args:
             initial_inputs: Dictionary of initial CA input variables
+            meta_info: Dictionary containing meta information like user context
         """
         self.initial_inputs = initial_inputs or {}
         self.step_outputs = {}  # Maps output_key -> parsed_json_output
+        self.meta_info = meta_info or {
+            "user": {
+                "first_name": "John",
+                "last_name": "Doe",
+                "full_name": "John Doe",
+                "email_addr": "john.doe@company.com",
+                "record_id": "12345",
+                "role": "Employee",
+                "department": "Engineering",
+                "custom_data": {}
+            }
+        }
 
     def add_step_output(self, output_key: str, parsed_json_value: Any) -> None:
         """
@@ -274,9 +319,11 @@ class DataContext:
     def get_data_value(self, path_string: str) -> Any:
         """
         Retrieve a value from the data context using dot notation.
+        Supports both 'data.path' and 'meta_info.path' prefixes.
 
         Args:
-            path_string: Path like 'input_var' or 'step_output_key.nested_key'
+            path_string: Path like 'input_var', 'step_output_key.nested_key',
+                        'data.input_var', or 'meta_info.user.first_name'
 
         Returns:
             The value at the specified path
@@ -284,6 +331,15 @@ class DataContext:
         Raises:
             DataPathNotFound: If the path is invalid
         """
+        # Handle meta_info paths
+        if path_string.startswith('meta_info.'):
+            meta_path = path_string[10:]  # Remove 'meta_info.' prefix
+            return self._navigate_path(self.meta_info, meta_path.split('.'), path_string)
+
+        # Handle data paths (with or without 'data.' prefix)
+        if path_string.startswith('data.'):
+            path_string = path_string[5:]  # Remove 'data.' prefix
+
         parts = path_string.split('.')
 
         # Check initial inputs first
@@ -349,14 +405,37 @@ class DataContext:
         except (KeyError, IndexError, ValueError, TypeError) as e:
             raise DataPathNotFound(f"Path '{original_path}' not found: {str(e)}")
 
+    def get_meta_info_paths(self) -> List[str]:
+        """
+        Get a list of all available meta_info paths.
+
+        Returns:
+            List of available meta_info path strings
+        """
+        paths = []
+
+        def _extract_paths(obj, prefix="meta_info"):
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    current_path = f"{prefix}.{key}"
+                    paths.append(current_path)
+                    if isinstance(value, dict):
+                        _extract_paths(value, current_path)
+
+        _extract_paths(self.meta_info)
+        return paths
+
     def get_available_paths(self) -> List[str]:
         """
         Get a list of all available top-level paths in the data context.
 
         Returns:
-            List of available path strings
+            List of available path strings including data and meta_info paths
         """
         paths = []
-        paths.extend(self.initial_inputs.keys())
-        paths.extend(self.step_outputs.keys())
+        # Add data paths
+        paths.extend([f"data.{key}" for key in self.initial_inputs.keys()])
+        paths.extend([f"data.{key}" for key in self.step_outputs.keys()])
+        # Add meta_info paths
+        paths.extend(self.get_meta_info_paths())
         return paths

@@ -14,10 +14,10 @@ from PySide6.QtWidgets import (
     QPushButton, QMessageBox,
     QStackedWidget, QTreeWidget, QTreeWidgetItem, QGroupBox,
     QFormLayout, QLineEdit, QTableWidget, QTableWidgetItem,
-    QComboBox
+    QComboBox, QTabWidget, QScrollArea, QCheckBox
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QFont
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QAction, QFont, QPalette
 
 from core_structures import (
     Workflow, ActionStep, ScriptStep, SwitchStep, ForLoopStep,
@@ -29,6 +29,11 @@ from yaml_generator import generate_yaml_string
 from validator import comprehensive_validate
 from error_display import ErrorListWidget, ValidationDialog, StatusIndicator, HelpDialog
 from help_system import get_tooltip, get_contextual_help
+from tutorial_system import TutorialManager, TutorialDialog
+from template_library import TemplateBrowserDialog, template_library
+from enhanced_json_selector import EnhancedJsonPathSelector
+from contextual_examples import ContextualExamplesPanel
+from enhanced_validator import enhanced_validator, ValidationError
 
 
 class WorkflowListWidget(QListWidget):
@@ -674,6 +679,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Moveworks YAML Assistant")
         self.setGeometry(100, 100, 1400, 900)
 
+        # Initialize tutorial manager
+        self.tutorial_manager = TutorialManager(self)
+
         # Create central widget and main layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -687,24 +695,23 @@ class MainWindow(QMainWindow):
         left_panel = self._create_left_panel()
         main_splitter.addWidget(left_panel)
 
-        # Center panel: Step configuration
-        self.config_panel = StepConfigurationPanel()
-        self.config_panel.step_updated.connect(self._on_step_updated)
-        main_splitter.addWidget(self.config_panel)
+        # Center panel: Step configuration with examples
+        center_panel = self._create_center_panel()
+        main_splitter.addWidget(center_panel)
 
-        # Right panel: JSON variable selection and YAML preview
+        # Right panel: Enhanced JSON selector and YAML preview
         right_panel = self._create_right_panel()
         main_splitter.addWidget(right_panel)
 
         # Set splitter proportions
-        main_splitter.setSizes([300, 500, 400])
+        main_splitter.setSizes([300, 600, 400])
 
         # Create menu bar
         self._create_menu_bar()
 
         # Connect signals
         self.workflow_list.step_selected.connect(self._on_step_selected)
-        self.json_panel.variable_selected.connect(self._on_variable_selected)
+        self.enhanced_json_panel.path_selected.connect(self._on_variable_selected)
 
         # Initialize with empty workflow
         self._update_all_panels()
@@ -790,8 +797,30 @@ class MainWindow(QMainWindow):
 
         return panel
 
+    def _create_center_panel(self):
+        """Create the center panel with step configuration and examples."""
+        # Create tab widget for center panel
+        center_tabs = QTabWidget()
+
+        # Configuration tab
+        config_tab = QWidget()
+        config_layout = QVBoxLayout(config_tab)
+
+        self.config_panel = StepConfigurationPanel()
+        self.config_panel.step_updated.connect(self._on_step_updated)
+        config_layout.addWidget(self.config_panel)
+
+        center_tabs.addTab(config_tab, "Configuration")
+
+        # Examples tab
+        self.examples_panel = ContextualExamplesPanel()
+        self.examples_panel.example_applied.connect(self._on_example_applied)
+        center_tabs.addTab(self.examples_panel, "Examples")
+
+        return center_tabs
+
     def _create_right_panel(self):
-        """Create the right panel with JSON selection and YAML preview."""
+        """Create the right panel with enhanced JSON selection and YAML preview."""
         panel = QWidget()
         layout = QVBoxLayout(panel)
 
@@ -799,9 +828,9 @@ class MainWindow(QMainWindow):
         right_splitter = QSplitter(Qt.Vertical)
         layout.addWidget(right_splitter)
 
-        # JSON variable selection panel
-        self.json_panel = JsonVariableSelectionPanel()
-        right_splitter.addWidget(self.json_panel)
+        # Enhanced JSON variable selection panel
+        self.enhanced_json_panel = EnhancedJsonPathSelector()
+        right_splitter.addWidget(self.enhanced_json_panel)
 
         # YAML preview panel
         self.yaml_panel = YamlPreviewPanel()
@@ -836,6 +865,14 @@ class MainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
+        # Template library
+        template_action = QAction("Template Library...", self)
+        template_action.setShortcut("Ctrl+T")
+        template_action.triggered.connect(self._show_template_library)
+        file_menu.addAction(template_action)
+
+        file_menu.addSeparator()
+
         export_yaml_action = QAction("Export YAML...", self)
         export_yaml_action.triggered.connect(self._export_yaml)
         file_menu.addAction(export_yaml_action)
@@ -847,13 +884,20 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
-        # Edit menu
-        edit_menu = menubar.addMenu("Edit")
+        # Tools menu
+        tools_menu = menubar.addMenu("Tools")
 
         validate_action = QAction("Validate Workflow", self)
         validate_action.setShortcut("F5")
         validate_action.triggered.connect(self._validate_workflow)
-        edit_menu.addAction(validate_action)
+        tools_menu.addAction(validate_action)
+
+        tools_menu.addSeparator()
+
+        # Interactive tutorials
+        tutorial_action = QAction("Interactive Tutorials...", self)
+        tutorial_action.triggered.connect(self._show_tutorials)
+        tools_menu.addAction(tutorial_action)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -1082,9 +1126,18 @@ class MainWindow(QMainWindow):
         if 0 <= step_index < len(self.workflow_list.workflow.steps):
             step = self.workflow_list.workflow.steps[step_index]
             self.config_panel.set_step(step, step_index)
-            self.json_panel.set_workflow(self.workflow_list.workflow, step_index)
+            self.enhanced_json_panel.set_workflow(self.workflow_list.workflow, step_index)
+
+            # Update examples context based on step type
+            if isinstance(step, ActionStep):
+                self.examples_panel.set_context("action_step")
+            elif isinstance(step, ScriptStep):
+                self.examples_panel.set_context("script_step")
+            else:
+                self.examples_panel.set_context("general")
         else:
             self.config_panel.clear_selection()
+            self.examples_panel.set_context("general")
 
     def _on_step_updated(self):
         """Handle updates to step configuration."""
@@ -1099,8 +1152,62 @@ class MainWindow(QMainWindow):
 
     def _update_all_panels(self):
         """Update all panels with the current workflow."""
-        self.json_panel.set_workflow(self.workflow_list.workflow)
+        self.enhanced_json_panel.set_workflow(self.workflow_list.workflow)
         self.yaml_panel.set_workflow(self.workflow_list.workflow)
+
+    def _on_example_applied(self, example_code: str):
+        """Handle example code being applied."""
+        # Get current step and apply example
+        current_row = self.workflow_list.currentRow()
+        if current_row >= 0:
+            step = self.workflow_list.workflow.steps[current_row]
+
+            # Apply example based on step type
+            if isinstance(step, ActionStep):
+                # For action steps, try to parse as input args or JSON output
+                try:
+                    # Try to parse as JSON for output
+                    json.loads(example_code)
+                    step.user_provided_json_output = example_code
+                except json.JSONDecodeError:
+                    # Not JSON, might be input args format
+                    pass
+            elif isinstance(step, ScriptStep):
+                # For script steps, apply as code
+                step.code = example_code
+
+            # Refresh displays
+            self.config_panel.set_step(step, current_row)
+            self._on_step_updated()
+
+    def _show_template_library(self):
+        """Show the template library dialog."""
+        dialog = TemplateBrowserDialog(self)
+        dialog.template_selected.connect(self._load_template)
+        dialog.exec()
+
+    def _load_template(self, template_id: str):
+        """Load a template into the current workflow."""
+        template = template_library.get_template(template_id)
+        if template:
+            reply = QMessageBox.question(
+                self, "Load Template",
+                f"Load template '{template.name}'? This will replace the current workflow.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if reply == QMessageBox.Yes:
+                self.workflow_list.workflow = template.workflow
+                self.workflow_list.update_workflow_display()
+                self.config_panel.clear_selection()
+                self._update_all_panels()
+
+                QMessageBox.information(self, "Success", f"Template '{template.name}' loaded successfully!")
+
+    def _show_tutorials(self):
+        """Show the tutorial selection dialog."""
+        self.tutorial_manager.show_tutorial_dialog()
 
     def _new_workflow(self):
         """Create a new workflow."""
@@ -1233,16 +1340,23 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Error", f"Failed to export YAML: {str(e)}")
 
     def _validate_workflow(self):
-        """Validate the current workflow and show results."""
+        """Validate the current workflow and show results with enhanced suggestions."""
         if not self.workflow_list.workflow.steps:
             QMessageBox.information(self, "Validation", "No steps in workflow to validate.")
             return
 
-        errors = comprehensive_validate(self.workflow_list.workflow)
+        # Use enhanced validator for better error messages and suggestions
+        enhanced_errors = enhanced_validator.validate_with_suggestions(self.workflow_list.workflow)
+
+        # Convert enhanced errors to basic error messages for existing dialog
+        error_messages = [error.message for error in enhanced_errors]
 
         # Show detailed validation dialog
-        dialog = ValidationDialog(errors, self)
+        dialog = ValidationDialog(error_messages, self)
         dialog.exec()
+
+        # Update YAML panel validation status
+        self.yaml_panel.refresh_yaml()
 
     def _show_help(self):
         """Show the help dialog."""
