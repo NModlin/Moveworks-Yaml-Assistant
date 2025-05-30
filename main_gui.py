@@ -670,6 +670,35 @@ class YamlPreviewPanel(QWidget):
             self.error_display.set_errors([f"YAML Generation Error: {str(e)}"])
             self.error_display.show()
 
+    def _copy_yaml(self):
+        """Copy YAML content to clipboard."""
+        yaml_content = self.yaml_text.toPlainText()
+        if yaml_content and yaml_content != "No steps in workflow":
+            QApplication.clipboard().setText(yaml_content)
+            QMessageBox.information(self, "Copied", "YAML content copied to clipboard!")
+        else:
+            QMessageBox.warning(self, "Nothing to Copy", "No YAML content to copy.")
+
+    def _export_yaml(self):
+        """Export YAML content to file."""
+        yaml_content = self.yaml_text.toPlainText()
+        if not yaml_content or yaml_content == "No steps in workflow":
+            QMessageBox.warning(self, "Nothing to Export", "No YAML content to export.")
+            return
+
+        from PySide6.QtWidgets import QFileDialog
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export YAML", "workflow.yaml", "YAML Files (*.yaml *.yml);;All Files (*)"
+        )
+
+        if filename:
+            try:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(yaml_content)
+                QMessageBox.information(self, "Export Successful", f"YAML exported to:\n{filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Failed to export YAML:\n{str(e)}")
+
 
 class MainWindow(QMainWindow):
     """Main application window for the Moveworks YAML Assistant."""
@@ -678,6 +707,23 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Moveworks YAML Assistant")
         self.setGeometry(100, 100, 1400, 900)
+
+        # Set main window styling
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f5f5f5;
+            }
+            QSplitter::handle {
+                background-color: #e0e0e0;
+                border: 1px solid #c0c0c0;
+            }
+            QSplitter::handle:horizontal {
+                width: 3px;
+            }
+            QSplitter::handle:vertical {
+                height: 3px;
+            }
+        """)
 
         # Initialize tutorial manager
         self.tutorial_manager = TutorialManager(self)
@@ -719,78 +765,168 @@ class MainWindow(QMainWindow):
     def _create_left_panel(self):
         """Create the left panel with step list and controls."""
         panel = QWidget()
+        panel.setStyleSheet("""
+            QWidget {
+                background-color: #f8f8f8;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+            }
+        """)
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
         # Header
-        header_label = QLabel("Workflow Steps")
-        header_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        header_label = QLabel("🔧 Workflow Steps")
+        header_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #333;
+                padding: 8px;
+                background-color: #e3f2fd;
+                border-radius: 4px;
+                border: 1px solid #2196f3;
+            }
+        """)
         layout.addWidget(header_label)
 
         # Step list
         self.workflow_list = WorkflowListWidget()
+        self.workflow_list.setStyleSheet("""
+            QListWidget {
+                background-color: white;
+                border: 2px solid #e0e0e0;
+                border-radius: 4px;
+                font-size: 13px;
+                selection-background-color: #bbdefb;
+                padding: 4px;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #f0f0f0;
+                border-radius: 3px;
+                margin: 1px;
+            }
+            QListWidget::item:hover {
+                background-color: #e3f2fd;
+            }
+            QListWidget::item:selected {
+                background-color: #bbdefb;
+                color: #333;
+            }
+        """)
         layout.addWidget(self.workflow_list)
 
         # Control buttons
         button_layout = QVBoxLayout()
+        button_layout.setSpacing(4)
+
+        # Button styling
+        button_style = """
+            QPushButton {
+                background-color: #2196f3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 12px;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+            QPushButton:pressed {
+                background-color: #0d47a1;
+            }
+        """
 
         # Basic step types
-        add_action_btn = QPushButton("Add Action Step")
+        add_action_btn = QPushButton("➕ Add Action Step")
         add_action_btn.clicked.connect(self._add_action_step)
         add_action_btn.setToolTip(get_tooltip("add_action"))
+        add_action_btn.setStyleSheet(button_style)
         button_layout.addWidget(add_action_btn)
 
-        add_script_btn = QPushButton("Add Script Step")
+        add_script_btn = QPushButton("📝 Add Script Step")
         add_script_btn.clicked.connect(self._add_script_step)
         add_script_btn.setToolTip(get_tooltip("add_script"))
+        add_script_btn.setStyleSheet(button_style)
         button_layout.addWidget(add_script_btn)
 
         # Control flow step types
-        add_switch_btn = QPushButton("Add Switch Step")
+        control_flow_style = button_style.replace("#2196f3", "#4caf50").replace("#1976d2", "#388e3c").replace("#0d47a1", "#2e7d32")
+
+        add_switch_btn = QPushButton("🔀 Add Switch Step")
         add_switch_btn.clicked.connect(self._add_switch_step)
+        add_switch_btn.setStyleSheet(control_flow_style)
         button_layout.addWidget(add_switch_btn)
 
-        add_for_btn = QPushButton("Add For Loop Step")
+        add_for_btn = QPushButton("🔄 Add For Loop Step")
         add_for_btn.clicked.connect(self._add_for_step)
+        add_for_btn.setStyleSheet(control_flow_style)
         button_layout.addWidget(add_for_btn)
 
-        add_parallel_btn = QPushButton("Add Parallel Step")
+        add_parallel_btn = QPushButton("⚡ Add Parallel Step")
         add_parallel_btn.clicked.connect(self._add_parallel_step)
+        add_parallel_btn.setStyleSheet(control_flow_style)
         button_layout.addWidget(add_parallel_btn)
 
-        add_return_btn = QPushButton("Add Return Step")
+        add_return_btn = QPushButton("↩️ Add Return Step")
         add_return_btn.clicked.connect(self._add_return_step)
+        add_return_btn.setStyleSheet(control_flow_style)
         button_layout.addWidget(add_return_btn)
 
         # Error handling step types
-        add_try_catch_btn = QPushButton("Add Try/Catch Step")
+        error_style = button_style.replace("#2196f3", "#ff9800").replace("#1976d2", "#f57c00").replace("#0d47a1", "#e65100")
+
+        add_try_catch_btn = QPushButton("🛡️ Add Try/Catch Step")
         add_try_catch_btn.clicked.connect(self._add_try_catch_step)
+        add_try_catch_btn.setStyleSheet(error_style)
         button_layout.addWidget(add_try_catch_btn)
 
-        add_raise_btn = QPushButton("Add Raise Step")
+        add_raise_btn = QPushButton("⚠️ Add Raise Step")
         add_raise_btn.clicked.connect(self._add_raise_step)
+        add_raise_btn.setStyleSheet(error_style)
         button_layout.addWidget(add_raise_btn)
 
         # Built-in actions
-        add_mw_action_btn = QPushButton("Add Built-in Action")
+        builtin_style = button_style.replace("#2196f3", "#9c27b0").replace("#1976d2", "#7b1fa2").replace("#0d47a1", "#4a148c")
+
+        add_mw_action_btn = QPushButton("🏗️ Add Built-in Action")
         add_mw_action_btn.clicked.connect(self._add_mw_action_step)
         add_mw_action_btn.setToolTip(get_tooltip("add_builtin"))
+        add_mw_action_btn.setStyleSheet(builtin_style)
         button_layout.addWidget(add_mw_action_btn)
 
-        button_layout.addWidget(QLabel())  # Spacer
+        # Spacer
+        spacer_label = QLabel()
+        spacer_label.setFixedHeight(8)
+        button_layout.addWidget(spacer_label)
 
-        remove_btn = QPushButton("Remove Selected")
+        # Management buttons
+        management_style = button_style.replace("#2196f3", "#f44336").replace("#1976d2", "#d32f2f").replace("#0d47a1", "#b71c1c")
+
+        remove_btn = QPushButton("🗑️ Remove Selected")
         remove_btn.clicked.connect(self._remove_selected_step)
         remove_btn.setToolTip(get_tooltip("remove_step"))
+        remove_btn.setStyleSheet(management_style)
         button_layout.addWidget(remove_btn)
 
-        move_up_btn = QPushButton("Move Up")
+        # Movement buttons
+        move_style = button_style.replace("#2196f3", "#607d8b").replace("#1976d2", "#455a64").replace("#0d47a1", "#263238")
+
+        move_up_btn = QPushButton("⬆️ Move Up")
         move_up_btn.clicked.connect(self._move_step_up)
         move_up_btn.setToolTip(get_tooltip("move_up"))
+        move_up_btn.setStyleSheet(move_style)
         button_layout.addWidget(move_up_btn)
 
-        move_down_btn = QPushButton("Move Down")
+        move_down_btn = QPushButton("⬇️ Move Down")
         move_down_btn.clicked.connect(self._move_step_down)
         move_down_btn.setToolTip(get_tooltip("move_down"))
+        move_down_btn.setStyleSheet(move_style)
         button_layout.addWidget(move_down_btn)
 
         layout.addLayout(button_layout)
@@ -801,43 +937,182 @@ class MainWindow(QMainWindow):
         """Create the center panel with step configuration and examples."""
         # Create tab widget for center panel
         center_tabs = QTabWidget()
+        center_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #c0c0c0;
+                background-color: #f8f8f8;
+            }
+            QTabWidget::tab-bar {
+                alignment: center;
+            }
+            QTabBar::tab {
+                background-color: #e0e0e0;
+                border: 1px solid #c0c0c0;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-size: 13px;
+                font-weight: bold;
+                color: #333333;
+            }
+            QTabBar::tab:selected {
+                background-color: #f8f8f8;
+                border-bottom-color: #f8f8f8;
+                color: #4caf50;
+            }
+            QTabBar::tab:hover {
+                background-color: #e8f5e8;
+                color: #388e3c;
+            }
+        """)
 
         # Configuration tab
         config_tab = QWidget()
+        config_tab.setStyleSheet("""
+            QWidget {
+                background-color: #f8f8f8;
+            }
+        """)
         config_layout = QVBoxLayout(config_tab)
+        config_layout.setContentsMargins(8, 8, 8, 8)
+        config_layout.setSpacing(8)
 
         self.config_panel = StepConfigurationPanel()
         self.config_panel.step_updated.connect(self._on_step_updated)
         config_layout.addWidget(self.config_panel)
 
-        center_tabs.addTab(config_tab, "Configuration")
+        center_tabs.addTab(config_tab, "📝 Configuration")
 
         # Examples tab
+        examples_tab = QWidget()
+        examples_tab.setStyleSheet("""
+            QWidget {
+                background-color: #f8f8f8;
+            }
+        """)
+        examples_layout = QVBoxLayout(examples_tab)
+        examples_layout.setContentsMargins(8, 8, 8, 8)
+        examples_layout.setSpacing(8)
+
         self.examples_panel = ContextualExamplesPanel()
         self.examples_panel.example_applied.connect(self._on_example_applied)
-        center_tabs.addTab(self.examples_panel, "Examples")
+        examples_layout.addWidget(self.examples_panel)
+
+        center_tabs.addTab(examples_tab, "💡 Examples")
 
         return center_tabs
 
     def _create_right_panel(self):
-        """Create the right panel with enhanced JSON selection and YAML preview."""
+        """Create the right panel with clean tabbed interface and YAML preview."""
         panel = QWidget()
         layout = QVBoxLayout(panel)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
 
-        # Create splitter for top/bottom sections
-        right_splitter = QSplitter(Qt.Vertical)
-        layout.addWidget(right_splitter)
+        # Create main tab widget for the right panel
+        right_tabs = QTabWidget()
+        right_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #c0c0c0;
+                background-color: #f8f8f8;
+            }
+            QTabWidget::tab-bar {
+                alignment: center;
+            }
+            QTabBar::tab {
+                background-color: #e0e0e0;
+                border: 1px solid #c0c0c0;
+                padding: 8px 16px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-size: 13px;
+                font-weight: bold;
+                color: #333333;
+            }
+            QTabBar::tab:selected {
+                background-color: #f8f8f8;
+                border-bottom-color: #f8f8f8;
+                color: #2196f3;
+            }
+            QTabBar::tab:hover {
+                background-color: #e3f2fd;
+                color: #1976d2;
+            }
+        """)
 
-        # Enhanced JSON variable selection panel
-        self.enhanced_json_panel = EnhancedJsonPathSelector()
-        right_splitter.addWidget(self.enhanced_json_panel)
+        # JSON Path Selector Tab
+        from tabbed_json_selector import TabbedJsonPathSelector
+        self.enhanced_json_panel = TabbedJsonPathSelector()
+        right_tabs.addTab(self.enhanced_json_panel, "🔍 JSON Explorer")
 
-        # YAML preview panel
+        # YAML Preview Tab
         self.yaml_panel = YamlPreviewPanel()
-        right_splitter.addWidget(self.yaml_panel)
+        right_tabs.addTab(self.yaml_panel, "📄 YAML Preview")
 
-        # Set splitter proportions
-        right_splitter.setSizes([300, 400])
+        # Validation Results Tab
+        self.validation_panel = self._create_validation_panel()
+        right_tabs.addTab(self.validation_panel, "✅ Validation")
+
+        layout.addWidget(right_tabs)
+        return panel
+
+    def _create_validation_panel(self):
+        """Create the validation results panel."""
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        # Header
+        header_layout = QHBoxLayout()
+        header_label = QLabel("Validation Results")
+        header_label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #333;
+                padding: 8px;
+                background-color: #e3f2fd;
+                border-radius: 4px;
+                border: 1px solid #2196f3;
+            }
+        """)
+        header_layout.addWidget(header_label)
+
+        # Validate button
+        validate_btn = QPushButton("🔍 Validate Now")
+        validate_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196f3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+            QPushButton:pressed {
+                background-color: #0d47a1;
+            }
+        """)
+        validate_btn.clicked.connect(self._validate_workflow)
+        header_layout.addWidget(validate_btn)
+        header_layout.addStretch()
+
+        layout.addLayout(header_layout)
+
+        # Status indicator
+        self.validation_status = StatusIndicator()
+        layout.addWidget(self.validation_status)
+
+        # Error display
+        self.error_display = ErrorListWidget()
+        layout.addWidget(self.error_display)
 
         return panel
 
@@ -1130,9 +1405,6 @@ class MainWindow(QMainWindow):
             # Enhanced JSON panel integration with better step handling
             self.enhanced_json_panel.set_workflow(self.workflow_list.workflow, step_index)
 
-            # Also call the refresh method to ensure proper update
-            self.enhanced_json_panel.refresh_for_step_selection(step_index)
-
             # Update examples context based on step type
             if isinstance(step, ActionStep):
                 self.examples_panel.set_context("action_step")
@@ -1154,7 +1426,32 @@ class MainWindow(QMainWindow):
         # Refresh the JSON selector to pick up any new parsed JSON data
         current_step_index = self.workflow_list.currentRow()
         if current_step_index >= 0:
-            self.enhanced_json_panel.refresh_for_step_selection(current_step_index)
+            self.enhanced_json_panel.set_workflow(self.workflow_list.workflow, current_step_index)
+
+        # Update validation
+        self._update_validation()
+
+    def _update_validation(self):
+        """Update the validation panel with current workflow status."""
+        if not self.workflow_list.workflow.steps:
+            self.validation_status.set_status("ready", "No steps to validate")
+            self.error_display.clear_errors()
+            return
+
+        try:
+            # Validate workflow
+            errors = comprehensive_validate(self.workflow_list.workflow)
+
+            if errors:
+                self.validation_status.set_error_count(len(errors))
+                self.error_display.set_errors(errors)
+            else:
+                self.validation_status.set_error_count(0)
+                self.error_display.clear_errors()
+
+        except Exception as e:
+            self.validation_status.set_status("error", f"Validation failed: {str(e)}")
+            self.error_display.clear_errors()
 
     def _on_variable_selected(self, path: str):
         """Handle variable selection from the JSON panel."""
@@ -1166,6 +1463,72 @@ class MainWindow(QMainWindow):
         """Update all panels with the current workflow."""
         self.enhanced_json_panel.set_workflow(self.workflow_list.workflow)
         self.yaml_panel.set_workflow(self.workflow_list.workflow)
+        self._update_validation()
+
+    def _validate_workflow(self):
+        """Validate the current workflow and show results."""
+        self._update_validation()
+
+        # Show a message if validation is successful
+        if not self.workflow_list.workflow.steps:
+            QMessageBox.information(self, "Validation", "No steps to validate.")
+            return
+
+        errors = comprehensive_validate(self.workflow_list.workflow)
+        if not errors:
+            QMessageBox.information(self, "Validation", "✅ Workflow validation passed successfully!")
+        else:
+            QMessageBox.warning(self, "Validation", f"❌ Found {len(errors)} validation error(s). Check the Validation tab for details.")
+
+    def _export_yaml(self):
+        """Export the current workflow as YAML."""
+        if not self.workflow_list.workflow.steps:
+            QMessageBox.warning(self, "Export YAML", "No workflow to export.")
+            return
+
+        from PySide6.QtWidgets import QFileDialog
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export YAML", "workflow.yaml", "YAML Files (*.yaml *.yml);;All Files (*)"
+        )
+
+        if filename:
+            try:
+                yaml_content = generate_yaml_string(self.workflow_list.workflow)
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(yaml_content)
+                QMessageBox.information(self, "Export Successful", f"YAML exported to:\n{filename}")
+            except Exception as e:
+                QMessageBox.critical(self, "Export Failed", f"Failed to export YAML:\n{str(e)}")
+
+    def _show_help(self):
+        """Show the help dialog."""
+        from comprehensive_help_dialog import ComprehensiveHelpDialog
+        help_dialog = ComprehensiveHelpDialog(self)
+        help_dialog.exec()
+
+    def _show_help_topic(self, topic: str):
+        """Show help for a specific topic."""
+        from comprehensive_help_dialog import ComprehensiveHelpDialog
+        help_dialog = ComprehensiveHelpDialog(self)
+        help_dialog.show_topic(topic)
+        help_dialog.exec()
+
+    def _show_about(self):
+        """Show the about dialog."""
+        QMessageBox.about(self, "About Moveworks YAML Assistant",
+                         """
+                         <h3>Moveworks YAML Assistant</h3>
+                         <p>A comprehensive tool for creating and managing Moveworks workflow YAML files.</p>
+                         <p><b>Features:</b></p>
+                         <ul>
+                         <li>Visual workflow builder</li>
+                         <li>JSON path selector</li>
+                         <li>Real-time validation</li>
+                         <li>Template library</li>
+                         <li>Interactive tutorials</li>
+                         </ul>
+                         <p><b>Version:</b> 2.0</p>
+                         """)
 
     def _on_example_applied(self, example_code: str):
         """Handle example code being applied."""

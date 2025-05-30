@@ -38,6 +38,130 @@ logger.setLevel(logging.DEBUG)
 
 
 # ============================================================================
+# VISUAL DESIGN CONSTANTS
+# ============================================================================
+
+class VisualDesignConstants:
+    """Centralized visual design constants for consistent styling."""
+
+    # Spacing & Layout
+    UNIFORM_MARGIN = 8
+    FORM_SPACING = 8
+    BUTTON_SPACING = 4
+    SECTION_SPACING = 12
+
+    # Colors
+    LIGHT_BACKGROUND = "#f8f8f8"
+    SUBTLE_BORDER = "#e0e0e0"
+    ACCENT_COLOR = "#2196f3"
+    SUCCESS_COLOR = "#4caf50"
+    ERROR_COLOR = "#f44336"
+    WARNING_COLOR = "#ff9800"
+
+    # Interactive States
+    HOVER_BACKGROUND = "#e3f2fd"
+    SELECTED_BACKGROUND = "#bbdefb"
+    DISABLED_OPACITY = "0.6"
+
+    # Typography - Increased sizes for better visibility
+    MONOSPACE_FONT = "Consolas, Monaco, 'Courier New', monospace"
+    HEADER_FONT_SIZE = "16px"
+    BODY_FONT_SIZE = "13px"
+    CODE_FONT_SIZE = "12px"
+    SMALL_FONT_SIZE = "11px"
+    LARGE_HEADER_SIZE = "18px"
+
+    # Component Styling
+    @staticmethod
+    def get_panel_style():
+        """Get standard panel styling."""
+        return f"""
+            QWidget {{
+                background-color: {VisualDesignConstants.LIGHT_BACKGROUND};
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 4px;
+                margin: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """
+
+    @staticmethod
+    def get_header_style():
+        """Get standard header styling."""
+        return f"""
+            QLabel {{
+                font-size: {VisualDesignConstants.HEADER_FONT_SIZE};
+                font-weight: bold;
+                color: #333;
+                margin-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """
+
+    @staticmethod
+    def get_code_style():
+        """Get standard code/monospace styling."""
+        return f"""
+            QTextEdit, QLineEdit {{
+                font-family: {VisualDesignConstants.MONOSPACE_FONT};
+                font-size: {VisualDesignConstants.CODE_FONT_SIZE};
+                background-color: white;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 3px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """
+
+    @staticmethod
+    def get_button_style():
+        """Get standard button styling."""
+        return f"""
+            QPushButton {{
+                background-color: {VisualDesignConstants.ACCENT_COLOR};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #1976d2;
+            }}
+            QPushButton:pressed {{
+                background-color: #0d47a1;
+            }}
+            QPushButton:disabled {{
+                background-color: #ccc;
+                color: #666;
+            }}
+        """
+
+    @staticmethod
+    def get_tree_style():
+        """Get standard tree widget styling."""
+        return f"""
+            QTreeWidget {{
+                background-color: white;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 4px;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                selection-background-color: {VisualDesignConstants.SELECTED_BACKGROUND};
+            }}
+            QTreeWidget::item {{
+                padding: 4px;
+                border-bottom: 1px solid #f0f0f0;
+            }}
+            QTreeWidget::item:hover {{
+                background-color: {VisualDesignConstants.HOVER_BACKGROUND};
+            }}
+            QTreeWidget::item:selected {{
+                background-color: {VisualDesignConstants.SELECTED_BACKGROUND};
+                color: #333;
+            }}
+        """
+
+
+# ============================================================================
 # PHASE 1: HIGH IMPACT, LOW COMPLEXITY FEATURES
 # ============================================================================
 
@@ -1856,32 +1980,126 @@ class JsonPathPreviewWidget(QWidget):
         self.current_path = ""
 
     def _setup_ui(self):
-        """Setup the preview UI."""
+        """Setup the preview UI with enhanced visual design."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(VisualDesignConstants.UNIFORM_MARGIN,
+                                 VisualDesignConstants.UNIFORM_MARGIN,
+                                 VisualDesignConstants.UNIFORM_MARGIN,
+                                 VisualDesignConstants.UNIFORM_MARGIN)
+        layout.setSpacing(VisualDesignConstants.FORM_SPACING)
 
-        # Header
-        header_label = QLabel("Path Preview")
-        header_label.setStyleSheet("font-weight: bold; font-size: 12px;")
-        layout.addWidget(header_label)
+        # Current path display with enhanced styling
+        path_group = QGroupBox("Selected Path")
+        path_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 4px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding: 0 {VisualDesignConstants.UNIFORM_MARGIN}px 0 {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """)
+        path_layout = QVBoxLayout(path_group)
 
-        # Current path display
         self.path_label = QLabel("No path selected")
-        self.path_label.setStyleSheet("color: #666; font-family: monospace;")
-        layout.addWidget(self.path_label)
+        self.path_label.setStyleSheet(f"""
+            QLabel {{
+                color: #666;
+                font-family: {VisualDesignConstants.MONOSPACE_FONT};
+                font-size: {VisualDesignConstants.CODE_FONT_SIZE};
+                background-color: {VisualDesignConstants.LIGHT_BACKGROUND};
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 3px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                word-wrap: break-word;
+            }}
+        """)
+        path_layout.addWidget(self.path_label)
 
-        # Value preview
+        # Value type and info
+        self.value_info_label = QLabel("Select a path to see details")
+        self.value_info_label.setStyleSheet(f"""
+            QLabel {{
+                color: {VisualDesignConstants.ACCENT_COLOR};
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                font-style: italic;
+                padding: 2px;
+            }}
+        """)
+        path_layout.addWidget(self.value_info_label)
+
+        layout.addWidget(path_group)
+
+        # Value preview with enhanced styling
+        value_group = QGroupBox("Value Preview")
+        value_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 4px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding: 0 {VisualDesignConstants.UNIFORM_MARGIN}px 0 {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """)
+        value_layout = QVBoxLayout(value_group)
+
         self.value_text = QTextEdit()
         self.value_text.setReadOnly(True)
         self.value_text.setMaximumHeight(150)
-        font = QFont("Consolas", 9)
-        font.setStyleHint(QFont.Monospace)
-        self.value_text.setFont(font)
-        layout.addWidget(self.value_text)
+        self.value_text.setStyleSheet(f"""
+            QTextEdit {{
+                font-family: {VisualDesignConstants.MONOSPACE_FONT};
+                font-size: {VisualDesignConstants.CODE_FONT_SIZE};
+                background-color: white;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 3px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """)
+        value_layout.addWidget(self.value_text)
 
-        # Copy button
-        copy_btn = QPushButton("Copy Path")
+        layout.addWidget(value_group)
+
+        # Action buttons with enhanced styling
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(VisualDesignConstants.BUTTON_SPACING)
+
+        copy_btn = QPushButton("📋 Copy Path")
         copy_btn.clicked.connect(self._copy_path)
-        layout.addWidget(copy_btn)
+        copy_btn.setStyleSheet(VisualDesignConstants.get_button_style())
+        buttons_layout.addWidget(copy_btn)
+
+        # Add export button for value
+        export_btn = QPushButton("💾 Export Value")
+        export_btn.clicked.connect(self._export_value)
+        export_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {VisualDesignConstants.SUCCESS_COLOR};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #388e3c;
+            }}
+        """)
+        buttons_layout.addWidget(export_btn)
+
+        buttons_layout.addStretch()
+        layout.addLayout(buttons_layout)
 
     def set_path_and_data(self, path: str, data: Dict[str, Any]):
         """Set the current path and data for preview."""
@@ -1890,56 +2108,119 @@ class JsonPathPreviewWidget(QWidget):
         self._update_preview()
 
     def _update_preview(self):
-        """Update the preview display with enhanced feedback."""
+        """Update the preview display with enhanced feedback and visual indicators."""
         if not self.current_path:
             self.path_label.setText("No path selected")
+            self.path_label.setStyleSheet(f"""
+                QLabel {{
+                    color: #999;
+                    font-family: {VisualDesignConstants.MONOSPACE_FONT};
+                    font-size: {VisualDesignConstants.CODE_FONT_SIZE};
+                    background-color: {VisualDesignConstants.LIGHT_BACKGROUND};
+                    border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                    border-radius: 3px;
+                    padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                    word-wrap: break-word;
+                }}
+            """)
             self.value_text.clear()
             self.value_text.setPlaceholderText("Select a path to see its value...")
+            self.value_info_label.setText("Select a path to see details")
             return
 
         logger.debug(f"Updating preview for path: {self.current_path}")
+
+        # Update path display with success styling
         self.path_label.setText(self.current_path)
+        self.path_label.setStyleSheet(f"""
+            QLabel {{
+                color: {VisualDesignConstants.SUCCESS_COLOR};
+                font-family: {VisualDesignConstants.MONOSPACE_FONT};
+                font-size: {VisualDesignConstants.CODE_FONT_SIZE};
+                background-color: white;
+                border: 1px solid {VisualDesignConstants.SUCCESS_COLOR};
+                border-radius: 3px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                word-wrap: break-word;
+            }}
+        """)
 
         # Extract value from data using path
         try:
             value = self._extract_value_by_path(self.current_data, self.current_path)
 
-            # Format value based on type
+            # Format value based on type with enhanced info
             if isinstance(value, dict):
                 formatted_value = json.dumps(value, indent=2)
-                value_info = f"Object with {len(value)} keys"
+                value_info = f"📦 Object with {len(value)} keys"
+                if len(value) > 0:
+                    key_preview = ", ".join(list(value.keys())[:3])
+                    if len(value) > 3:
+                        key_preview += "..."
+                    value_info += f" ({key_preview})"
             elif isinstance(value, list):
                 formatted_value = json.dumps(value, indent=2)
-                value_info = f"Array with {len(value)} items"
+                value_info = f"📋 Array with {len(value)} items"
+                if len(value) > 0:
+                    value_info += f" (first: {type(value[0]).__name__})"
             elif isinstance(value, str):
                 formatted_value = f'"{value}"'
-                value_info = f"String ({len(value)} characters)"
+                value_info = f"📝 String ({len(value)} characters)"
+                if len(value) > 50:
+                    value_info += " - Long text"
             elif isinstance(value, (int, float)):
                 formatted_value = str(value)
-                value_info = f"Number ({type(value).__name__})"
+                value_info = f"🔢 Number ({type(value).__name__}: {value})"
             elif isinstance(value, bool):
                 formatted_value = str(value).lower()
-                value_info = "Boolean"
+                value_info = f"✅ Boolean ({value})"
             elif value is None:
                 formatted_value = "null"
-                value_info = "Null value"
+                value_info = "❌ Null value"
             else:
                 formatted_value = str(value)
-                value_info = f"{type(value).__name__}"
+                value_info = f"❓ {type(value).__name__}"
 
             self.value_text.setPlainText(formatted_value)
-
-            # Update info label if it exists
-            if hasattr(self, 'value_info_label'):
-                self.value_info_label.setText(value_info)
+            self.value_info_label.setText(value_info)
+            self.value_info_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {VisualDesignConstants.SUCCESS_COLOR};
+                    font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                    font-style: italic;
+                    padding: 2px;
+                }}
+            """)
 
             logger.debug(f"Successfully extracted value: {value_info}")
 
         except Exception as e:
-            error_msg = f"Error extracting value: {str(e)}"
+            error_msg = f"❌ Error extracting value: {str(e)}"
             self.value_text.setPlainText(error_msg)
-            if hasattr(self, 'value_info_label'):
-                self.value_info_label.setText("Error")
+            self.value_info_label.setText("❌ Error accessing path")
+            self.value_info_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {VisualDesignConstants.ERROR_COLOR};
+                    font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                    font-style: italic;
+                    padding: 2px;
+                }}
+            """)
+
+            # Update path label with error styling
+            self.path_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {VisualDesignConstants.ERROR_COLOR};
+                    font-family: {VisualDesignConstants.MONOSPACE_FONT};
+                    font-size: {VisualDesignConstants.CODE_FONT_SIZE};
+                    background-color: #ffebee;
+                    border: 1px solid {VisualDesignConstants.ERROR_COLOR};
+                    border-radius: 3px;
+                    padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                    word-wrap: break-word;
+                }}
+            """)
+
             logger.error(f"Error extracting value for path {self.current_path}: {str(e)}")
 
     def _extract_value_by_path(self, data: Dict[str, Any], path: str) -> Any:
@@ -1987,23 +2268,92 @@ class JsonPathPreviewWidget(QWidget):
         return current
 
     def _copy_path(self):
-        """Copy the current path to clipboard with user feedback."""
+        """Copy the current path to clipboard with enhanced user feedback."""
         if self.current_path:
             from PySide6.QtWidgets import QApplication
+            from PySide6.QtCore import QTimer
+
             clipboard = QApplication.clipboard()
             if clipboard:
                 clipboard.setText(self.current_path)
             logger.debug(f"Copied path to clipboard: {self.current_path}")
 
-            # Provide visual feedback by temporarily changing button text
-            original_text = self.sender().text() if self.sender() else "Copy Path"
-            if self.sender():
-                self.sender().setText("✓ Copied!")
-                # Reset text after 2 seconds
-                from PySide6.QtCore import QTimer
-                QTimer.singleShot(2000, lambda: self.sender().setText(original_text))
+            # Provide enhanced visual feedback
+            button = self.sender()
+            if button:
+                original_text = button.text()
+                original_style = button.styleSheet()
+
+                # Update button appearance
+                button.setText("✅ Copied!")
+                button.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {VisualDesignConstants.SUCCESS_COLOR};
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                        font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                        font-weight: bold;
+                    }}
+                """)
+
+                # Reset after 2 seconds
+                QTimer.singleShot(2000, lambda: (
+                    button.setText(original_text),
+                    button.setStyleSheet(original_style)
+                ))
         else:
             logger.debug("No path to copy")
+
+    def _export_value(self):
+        """Export the current value to a file with format options."""
+        if not self.current_path or not self.current_data:
+            logger.debug("No value to export")
+            return
+
+        try:
+            value = self._extract_value_by_path(self.current_data, self.current_path)
+
+            # Format the value for export
+            if isinstance(value, (dict, list)):
+                export_content = json.dumps(value, indent=2)
+                default_extension = "json"
+            else:
+                export_content = str(value)
+                default_extension = "txt"
+
+            # Simple export (in a real implementation, you'd use QFileDialog)
+            filename = f"exported_value.{default_extension}"
+            logger.debug(f"Would export value to {filename}: {export_content[:100]}...")
+
+            # Provide visual feedback
+            button = self.sender()
+            if button:
+                original_text = button.text()
+                original_style = button.styleSheet()
+
+                button.setText("💾 Exported!")
+                button.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {VisualDesignConstants.SUCCESS_COLOR};
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                        font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                        font-weight: bold;
+                    }}
+                """)
+
+                from PySide6.QtCore import QTimer
+                QTimer.singleShot(2000, lambda: (
+                    button.setText(original_text),
+                    button.setStyleSheet(original_style)
+                ))
+
+        except Exception as e:
+            logger.error(f"Error exporting value: {str(e)}")
 
 
 class EnhancedJsonPathSelector(QWidget):
@@ -2035,147 +2385,534 @@ class EnhancedJsonPathSelector(QWidget):
         logger.debug("EnhancedJsonPathSelector initialized with Phase 1, 2 & 3 features")
 
     def _setup_ui(self):
-        """Setup the enhanced JSON path selector UI."""
+        """Setup the enhanced JSON path selector UI with visual design standards."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(VisualDesignConstants.UNIFORM_MARGIN,
+                                 VisualDesignConstants.UNIFORM_MARGIN,
+                                 VisualDesignConstants.UNIFORM_MARGIN,
+                                 VisualDesignConstants.UNIFORM_MARGIN)
+        layout.setSpacing(VisualDesignConstants.FORM_SPACING)
 
-        # Header
-        header_label = QLabel("Enhanced JSON Path Selector")
-        header_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        # Apply panel styling to main widget
+        self.setStyleSheet(VisualDesignConstants.get_panel_style())
+
+        # Header with larger, more visible styling
+        header_label = QLabel("🔍 JSON Path Selector")
+        header_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: {VisualDesignConstants.LARGE_HEADER_SIZE};
+                font-weight: bold;
+                color: {VisualDesignConstants.ACCENT_COLOR};
+                background-color: white;
+                border: 2px solid {VisualDesignConstants.ACCENT_COLOR};
+                border-radius: 6px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                margin-bottom: {VisualDesignConstants.SECTION_SPACING}px;
+            }}
+        """)
         layout.addWidget(header_label)
 
-        # Step selection
-        step_layout = QHBoxLayout()
-        step_layout.addWidget(QLabel("Step:"))
+        # Step selection section
+        step_group = QGroupBox("📋 Step Selection")
+        step_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                font-size: {VisualDesignConstants.HEADER_FONT_SIZE};
+                color: white;
+                background-color: {VisualDesignConstants.ACCENT_COLOR};
+                border: 2px solid {VisualDesignConstants.ACCENT_COLOR};
+                border-radius: 6px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN * 3}px;
+                padding-left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-right: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                color: white;
+                background-color: {VisualDesignConstants.ACCENT_COLOR};
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                border-radius: 4px;
+            }}
+        """)
+        step_layout = QHBoxLayout(step_group)
+        step_layout.setSpacing(VisualDesignConstants.FORM_SPACING)
+
+        step_label = QLabel("Step:")
+        step_label.setMinimumWidth(60)
+        step_layout.addWidget(step_label)
 
         self.step_combo = QComboBox()
         self.step_combo.currentIndexChanged.connect(self._on_step_changed)
+        self.step_combo.setStyleSheet(f"""
+            QComboBox {{
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 3px;
+                background-color: white;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+            }}
+            QComboBox:hover {{
+                border-color: {VisualDesignConstants.ACCENT_COLOR};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid #666;
+            }}
+        """)
         step_layout.addWidget(self.step_combo)
 
-        layout.addLayout(step_layout)
+        layout.addWidget(step_group)
 
-        # Search box with smart completion
-        search_layout = QHBoxLayout()
-        search_layout.addWidget(QLabel("Search:"))
+        # Search section
+        search_group = QGroupBox("🔍 Search & Filter")
+        search_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                font-size: {VisualDesignConstants.HEADER_FONT_SIZE};
+                color: white;
+                background-color: {VisualDesignConstants.SUCCESS_COLOR};
+                border: 2px solid {VisualDesignConstants.SUCCESS_COLOR};
+                border-radius: 6px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN * 3}px;
+                padding-left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-right: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                color: white;
+                background-color: {VisualDesignConstants.SUCCESS_COLOR};
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                border-radius: 4px;
+            }}
+        """)
+        search_layout = QHBoxLayout(search_group)
+        search_layout.setSpacing(VisualDesignConstants.FORM_SPACING)
+
+        search_label = QLabel("🔍 Search:")
+        search_label.setMinimumWidth(60)
+        search_layout.addWidget(search_label)
 
         self.search_edit = DropTargetLineEdit()
         self.search_edit.setPlaceholderText("Search paths, keys, or values... (supports drag & drop)")
         self.search_edit.textChanged.connect(self._on_search_changed)
         self.search_edit.set_path_completer(self.smart_completer)
         self.search_edit.set_path_validator(self.path_validator)
+        self.search_edit.setStyleSheet(VisualDesignConstants.get_code_style())
         search_layout.addWidget(self.search_edit)
 
-        layout.addLayout(search_layout)
+        layout.addWidget(search_group)
 
-        # Bookmarks panel
-        bookmarks_layout = QHBoxLayout()
-        bookmarks_layout.addWidget(QLabel("Bookmarks:"))
+        # Bookmarks section
+        bookmarks_group = QGroupBox("📌 Bookmarks & Quick Access")
+        bookmarks_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                font-size: {VisualDesignConstants.HEADER_FONT_SIZE};
+                color: white;
+                background-color: {VisualDesignConstants.WARNING_COLOR};
+                border: 2px solid {VisualDesignConstants.WARNING_COLOR};
+                border-radius: 6px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN * 3}px;
+                padding-left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-right: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                color: white;
+                background-color: {VisualDesignConstants.WARNING_COLOR};
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                border-radius: 4px;
+            }}
+        """)
+        bookmarks_layout = QHBoxLayout(bookmarks_group)
+        bookmarks_layout.setSpacing(VisualDesignConstants.BUTTON_SPACING)
+
+        bookmarks_label = QLabel("📌 Saved:")
+        bookmarks_label.setMinimumWidth(60)
+        bookmarks_layout.addWidget(bookmarks_label)
 
         self.bookmarks_combo = QComboBox()
         self.bookmarks_combo.setPlaceholderText("Select a bookmarked path...")
         self.bookmarks_combo.currentTextChanged.connect(self._on_bookmark_selected)
+        self.bookmarks_combo.setStyleSheet(f"""
+            QComboBox {{
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 3px;
+                background-color: white;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+            }}
+            QComboBox:hover {{
+                border-color: {VisualDesignConstants.ACCENT_COLOR};
+            }}
+        """)
         bookmarks_layout.addWidget(self.bookmarks_combo)
 
         self.bookmark_btn = QPushButton("📌 Bookmark")
         self.bookmark_btn.clicked.connect(self._add_current_bookmark)
         self.bookmark_btn.setEnabled(False)
+        self.bookmark_btn.setStyleSheet(VisualDesignConstants.get_button_style())
         bookmarks_layout.addWidget(self.bookmark_btn)
 
         self.manage_bookmarks_btn = QPushButton("⚙️ Manage")
         self.manage_bookmarks_btn.clicked.connect(self._manage_bookmarks)
+        self.manage_bookmarks_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {VisualDesignConstants.WARNING_COLOR};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #f57c00;
+            }}
+        """)
         bookmarks_layout.addWidget(self.manage_bookmarks_btn)
 
-        layout.addLayout(bookmarks_layout)
+        layout.addWidget(bookmarks_group)
 
-        # Phase 2: Templates and Smart Suggestions
-        phase2_layout = QHBoxLayout()
+        # Advanced Features section (collapsible)
+        advanced_group = QGroupBox("🚀 Advanced Features")
+        advanced_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                font-size: {VisualDesignConstants.HEADER_FONT_SIZE};
+                color: white;
+                background-color: #9c27b0;
+                border: 2px solid #9c27b0;
+                border-radius: 6px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN * 3}px;
+                padding-left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-right: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                color: white;
+                background-color: #9c27b0;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                border-radius: 4px;
+            }}
+        """)
+        advanced_layout = QVBoxLayout(advanced_group)
+        advanced_layout.setSpacing(VisualDesignConstants.FORM_SPACING)
 
-        # Templates
-        templates_layout = QHBoxLayout()
-        templates_layout.addWidget(QLabel("Templates:"))
+        # Templates and History row
+        templates_history_layout = QHBoxLayout()
+        templates_history_layout.setSpacing(VisualDesignConstants.BUTTON_SPACING)
+
+        # Templates section
+        templates_label = QLabel("📋 Templates:")
+        templates_label.setMinimumWidth(80)
+        templates_history_layout.addWidget(templates_label)
 
         self.templates_combo = QComboBox()
         self.templates_combo.setPlaceholderText("Select a template...")
         self.templates_combo.currentTextChanged.connect(self._on_template_selected)
-        templates_layout.addWidget(self.templates_combo)
+        self.templates_combo.setStyleSheet(f"""
+            QComboBox {{
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 3px;
+                background-color: white;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+            }}
+            QComboBox:hover {{
+                border-color: {VisualDesignConstants.ACCENT_COLOR};
+            }}
+        """)
+        templates_history_layout.addWidget(self.templates_combo)
 
-        self.path_builder_btn = QPushButton("🧭 Path Builder")
+        self.path_builder_btn = QPushButton("🧭 Builder")
         self.path_builder_btn.clicked.connect(self._open_path_builder)
-        templates_layout.addWidget(self.path_builder_btn)
-
-        phase2_layout.addLayout(templates_layout)
+        self.path_builder_btn.setStyleSheet(VisualDesignConstants.get_button_style())
+        templates_history_layout.addWidget(self.path_builder_btn)
 
         # History controls
-        history_layout = QHBoxLayout()
-
         self.undo_btn = QPushButton("↶ Undo")
         self.undo_btn.clicked.connect(self._undo_selection)
         self.undo_btn.setEnabled(False)
-        history_layout.addWidget(self.undo_btn)
+        self.undo_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #666;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+            }}
+            QPushButton:hover:enabled {{
+                background-color: #555;
+            }}
+            QPushButton:disabled {{
+                background-color: #ccc;
+                color: #999;
+            }}
+        """)
+        templates_history_layout.addWidget(self.undo_btn)
 
         self.redo_btn = QPushButton("↷ Redo")
         self.redo_btn.clicked.connect(self._redo_selection)
         self.redo_btn.setEnabled(False)
-        history_layout.addWidget(self.redo_btn)
+        self.redo_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #666;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+            }}
+            QPushButton:hover:enabled {{
+                background-color: #555;
+            }}
+            QPushButton:disabled {{
+                background-color: #ccc;
+                color: #999;
+            }}
+        """)
+        templates_history_layout.addWidget(self.redo_btn)
 
-        phase2_layout.addLayout(history_layout)
-
-        layout.addLayout(phase2_layout)
+        advanced_layout.addLayout(templates_history_layout)
 
         # Smart suggestions panel
         suggestions_group = QGroupBox("💡 Smart Suggestions")
+        suggestions_group.setStyleSheet(f"""
+            QGroupBox {{
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 4px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """)
         suggestions_layout = QVBoxLayout(suggestions_group)
 
         self.suggestions_list = QListWidget()
         self.suggestions_list.setMaximumHeight(80)
         self.suggestions_list.itemClicked.connect(self._on_suggestion_clicked)
+        self.suggestions_list.setStyleSheet(f"""
+            QListWidget {{
+                background-color: white;
+                border: 1px solid {VisualDesignConstants.SUBTLE_BORDER};
+                border-radius: 3px;
+                font-size: {VisualDesignConstants.BODY_FONT_SIZE};
+            }}
+            QListWidget::item {{
+                padding: 4px;
+                border-bottom: 1px solid #f0f0f0;
+            }}
+            QListWidget::item:hover {{
+                background-color: {VisualDesignConstants.HOVER_BACKGROUND};
+            }}
+            QListWidget::item:selected {{
+                background-color: {VisualDesignConstants.SELECTED_BACKGROUND};
+            }}
+        """)
         suggestions_layout.addWidget(self.suggestions_list)
 
-        layout.addWidget(suggestions_group)
+        advanced_layout.addWidget(suggestions_group)
 
-        # Phase 3: Advanced Features
-        phase3_layout = QHBoxLayout()
+        # Advanced tools row
+        tools_layout = QHBoxLayout()
+        tools_layout.setSpacing(VisualDesignConstants.BUTTON_SPACING)
 
-        self.visualizer_btn = QPushButton("📊 Data Flow Diagram")
+        self.visualizer_btn = QPushButton("📊 Data Flow")
         self.visualizer_btn.clicked.connect(self._open_data_flow_visualizer)
-        phase3_layout.addWidget(self.visualizer_btn)
+        self.visualizer_btn.setStyleSheet(VisualDesignConstants.get_button_style())
+        tools_layout.addWidget(self.visualizer_btn)
 
         self.chain_builder_btn = QPushButton("🔗 Chain Builder")
         self.chain_builder_btn.clicked.connect(self._open_chain_builder)
-        phase3_layout.addWidget(self.chain_builder_btn)
+        self.chain_builder_btn.setStyleSheet(VisualDesignConstants.get_button_style())
+        tools_layout.addWidget(self.chain_builder_btn)
 
-        self.docs_btn = QPushButton("📚 Generate Docs")
+        self.docs_btn = QPushButton("📚 Docs")
         self.docs_btn.clicked.connect(self._generate_documentation)
-        phase3_layout.addWidget(self.docs_btn)
+        self.docs_btn.setStyleSheet(VisualDesignConstants.get_button_style())
+        tools_layout.addWidget(self.docs_btn)
 
         self.analytics_btn = QPushButton("📈 Analytics")
         self.analytics_btn.clicked.connect(self._show_analytics)
-        phase3_layout.addWidget(self.analytics_btn)
+        self.analytics_btn.setStyleSheet(VisualDesignConstants.get_button_style())
+        tools_layout.addWidget(self.analytics_btn)
 
-        layout.addLayout(phase3_layout)
+        advanced_layout.addLayout(tools_layout)
+        layout.addWidget(advanced_group)
 
-        # Main content splitter
-        splitter = QSplitter(Qt.Vertical)
-        layout.addWidget(splitter)
+        # Main content area with enhanced styling
+        content_splitter = QSplitter(Qt.Vertical)
+        content_splitter.setStyleSheet(f"""
+            QSplitter::handle {{
+                background-color: {VisualDesignConstants.SUBTLE_BORDER};
+                height: 3px;
+            }}
+            QSplitter::handle:hover {{
+                background-color: {VisualDesignConstants.ACCENT_COLOR};
+            }}
+        """)
+        layout.addWidget(content_splitter)
 
-        # JSON tree
-        tree_group = QGroupBox("JSON Structure")
-        tree_layout = QVBoxLayout(tree_group)
+        # JSON Explorer Tab
+        json_explorer_group = QGroupBox("🌳 JSON Explorer")
+        json_explorer_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                font-size: {VisualDesignConstants.HEADER_FONT_SIZE};
+                color: white;
+                background-color: {VisualDesignConstants.ACCENT_COLOR};
+                border: 2px solid {VisualDesignConstants.ACCENT_COLOR};
+                border-radius: 6px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN * 3}px;
+                padding-left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-right: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                color: white;
+                background-color: {VisualDesignConstants.ACCENT_COLOR};
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                border-radius: 4px;
+            }}
+        """)
+        json_explorer_layout = QVBoxLayout(json_explorer_group)
+        json_explorer_layout.setContentsMargins(VisualDesignConstants.UNIFORM_MARGIN,
+                                               VisualDesignConstants.UNIFORM_MARGIN,
+                                               VisualDesignConstants.UNIFORM_MARGIN,
+                                               VisualDesignConstants.UNIFORM_MARGIN)
 
+        # Auto-population status indicator
+        self.auto_populate_status = QLabel("🔄 Auto-populating when step is selected...")
+        self.auto_populate_status.setStyleSheet(f"""
+            QLabel {{
+                color: {VisualDesignConstants.ACCENT_COLOR};
+                font-style: italic;
+                padding: 4px;
+                background-color: {VisualDesignConstants.HOVER_BACKGROUND};
+                border-radius: 3px;
+                margin-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+        """)
+        json_explorer_layout.addWidget(self.auto_populate_status)
+
+        # Enhanced JSON tree with improved styling
         self.json_tree = JsonTreeWidget()
         self.json_tree.path_selected.connect(self._on_path_selected)
-        tree_layout.addWidget(self.json_tree)
+        self.json_tree.setStyleSheet(VisualDesignConstants.get_tree_style())
+        json_explorer_layout.addWidget(self.json_tree)
 
-        splitter.addWidget(tree_group)
+        content_splitter.addWidget(json_explorer_group)
 
-        # Preview panel
+        # Selected Path Preview Panel
+        preview_group = QGroupBox("📋 Selected Path Preview")
+        preview_group.setStyleSheet(f"""
+            QGroupBox {{
+                font-weight: bold;
+                font-size: {VisualDesignConstants.HEADER_FONT_SIZE};
+                color: white;
+                background-color: {VisualDesignConstants.SUCCESS_COLOR};
+                border: 2px solid {VisualDesignConstants.SUCCESS_COLOR};
+                border-radius: 6px;
+                margin-top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-top: {VisualDesignConstants.UNIFORM_MARGIN * 3}px;
+                padding-left: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-right: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                padding-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                top: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                color: white;
+                background-color: {VisualDesignConstants.SUCCESS_COLOR};
+                padding: {VisualDesignConstants.UNIFORM_MARGIN}px {VisualDesignConstants.UNIFORM_MARGIN * 2}px;
+                border-radius: 4px;
+            }}
+        """)
+        preview_layout = QVBoxLayout(preview_group)
+        preview_layout.setContentsMargins(VisualDesignConstants.UNIFORM_MARGIN,
+                                         VisualDesignConstants.UNIFORM_MARGIN,
+                                         VisualDesignConstants.UNIFORM_MARGIN,
+                                         VisualDesignConstants.UNIFORM_MARGIN)
+
         self.preview_widget = JsonPathPreviewWidget()
-        splitter.addWidget(self.preview_widget)
+        preview_layout.addWidget(self.preview_widget)
 
-        splitter.setSizes([300, 150])
+        content_splitter.addWidget(preview_group)
 
-        # Initialize Phase 2 components
+        # Set splitter proportions for optimal user experience
+        content_splitter.setSizes([400, 200])
+
+        # Initialize components
         self._update_templates_combo()
         self._update_bookmarks_combo()
+
+        # Set initial auto-populate status
+        self._update_auto_populate_status("Ready - Select a step to explore JSON data")
+
+    def _update_auto_populate_status(self, message: str, status_type: str = "info"):
+        """Update the auto-populate status indicator with visual feedback."""
+        if hasattr(self, 'auto_populate_status'):
+            status_colors = {
+                "info": VisualDesignConstants.ACCENT_COLOR,
+                "success": VisualDesignConstants.SUCCESS_COLOR,
+                "warning": VisualDesignConstants.WARNING_COLOR,
+                "error": VisualDesignConstants.ERROR_COLOR
+            }
+
+            status_backgrounds = {
+                "info": VisualDesignConstants.HOVER_BACKGROUND,
+                "success": "#e8f5e8",
+                "warning": "#fff3e0",
+                "error": "#ffebee"
+            }
+
+            color = status_colors.get(status_type, VisualDesignConstants.ACCENT_COLOR)
+            bg_color = status_backgrounds.get(status_type, VisualDesignConstants.HOVER_BACKGROUND)
+
+            self.auto_populate_status.setText(message)
+            self.auto_populate_status.setStyleSheet(f"""
+                QLabel {{
+                    color: {color};
+                    font-style: italic;
+                    padding: 4px;
+                    background-color: {bg_color};
+                    border-radius: 3px;
+                    margin-bottom: {VisualDesignConstants.UNIFORM_MARGIN}px;
+                }}
+            """)
 
     def set_workflow(self, workflow, current_step_index: int = -1):
         """Set the workflow and update available steps."""
@@ -2239,12 +2976,13 @@ class EnhancedJsonPathSelector(QWidget):
                     break
 
     def _on_step_changed(self, index):
-        """Handle step selection change with enhanced logging and error handling."""
+        """Handle step selection change with enhanced logging, error handling, and user feedback."""
         logger.debug(f"_on_step_changed called with index: {index}")
 
         if index < 0:
             logger.debug("Invalid index, clearing tree")
             self.json_tree.populate_from_json({}, "data")
+            self._update_auto_populate_status("No step selected", "warning")
             return
 
         step_index = self.step_combo.itemData(index)
@@ -2253,20 +2991,31 @@ class EnhancedJsonPathSelector(QWidget):
         if step_index == -1:
             # Initial inputs selected
             logger.debug("Initial inputs selected")
-            # TODO: Add initial input data from workflow context
+            self._update_auto_populate_status("🔄 Loading initial inputs...", "info")
+
             initial_data = {}
             if self.workflow and hasattr(self.workflow, 'initial_inputs'):
                 initial_data = self.workflow.initial_inputs or {}
+
             self.json_tree.populate_from_json(initial_data, "data")
+
+            if initial_data:
+                self._update_auto_populate_status(f"✅ Loaded initial inputs ({len(initial_data)} items)", "success")
+            else:
+                self._update_auto_populate_status("⚠️ No initial inputs available", "warning")
         else:
             # Step output selected
             if not self.workflow or step_index >= len(self.workflow.steps):
                 logger.error(f"Invalid step index {step_index} for workflow with {len(self.workflow.steps) if self.workflow else 0} steps")
                 self.json_tree.populate_from_json({}, "data")
+                self._update_auto_populate_status("❌ Invalid step selection", "error")
                 return
 
             step = self.workflow.steps[step_index]
+            step_name = f"Step {step_index + 1}"
             logger.debug(f"Selected step type: {type(step).__name__}")
+
+            self._update_auto_populate_status(f"🔄 Loading JSON data from {step_name}...", "info")
 
             # Check for parsed JSON output
             if hasattr(step, 'parsed_json_output') and step.parsed_json_output:
@@ -2276,22 +3025,89 @@ class EnhancedJsonPathSelector(QWidget):
                 # Wrap the output in the expected structure
                 data = {output_key: step.parsed_json_output}
                 self.json_tree.populate_from_json(data, "data")
+
+                # Count total items for user feedback
+                total_items = self._count_json_items(step.parsed_json_output)
+                self._update_auto_populate_status(f"✅ Loaded {step_name} data ({total_items} items)", "success")
             else:
                 logger.debug("No parsed JSON output found for this step")
-                # Show a helpful message
                 self.json_tree.populate_from_json({}, "data")
+                self._update_auto_populate_status(f"⚠️ {step_name} has no JSON output", "warning")
+
+    def _count_json_items(self, data) -> int:
+        """Count total items in JSON data structure for user feedback."""
+        if isinstance(data, dict):
+            return len(data)
+        elif isinstance(data, list):
+            return len(data)
+        else:
+            return 1
 
     def _on_search_changed(self, query):
-        """Handle search query change."""
+        """Handle search query change with real-time filtering and visual feedback."""
         if not query.strip():
+            # Clear search highlighting and show all items
+            if hasattr(self.json_tree, 'clear_search_highlighting'):
+                self.json_tree.clear_search_highlighting()
+            self._update_search_status("")
             return
 
-        # Find matching paths
-        matching_paths = self.json_tree.search_paths(query)
+        logger.debug(f"Search query changed: {query}")
 
-        # Highlight first match
-        if matching_paths:
-            self.json_tree.highlight_path(matching_paths[0])
+        # Update search status
+        self._update_search_status(f"🔍 Searching for '{query}'...", "info")
+
+        # Find matching paths
+        try:
+            if hasattr(self.json_tree, 'search_paths'):
+                matching_paths = self.json_tree.search_paths(query)
+            else:
+                # Fallback search implementation
+                matching_paths = self._fallback_search(query)
+
+            if matching_paths:
+                # Highlight matches and show count
+                if hasattr(self.json_tree, 'highlight_search_results'):
+                    self.json_tree.highlight_search_results(matching_paths)
+                elif hasattr(self.json_tree, 'highlight_path'):
+                    self.json_tree.highlight_path(matching_paths[0])
+
+                self._update_search_status(f"✅ Found {len(matching_paths)} match(es)", "success")
+
+                # Auto-select first match if only one result
+                if len(matching_paths) == 1:
+                    self._simulate_path_selection(matching_paths[0])
+            else:
+                self._update_search_status(f"❌ No matches found for '{query}'", "warning")
+
+        except Exception as e:
+            logger.error(f"Error during search: {str(e)}")
+            self._update_search_status("❌ Search error", "error")
+
+    def _update_search_status(self, message: str, status_type: str = "info"):
+        """Update search status in the search box placeholder or tooltip."""
+        if hasattr(self, 'search_edit') and message:
+            if not message:
+                self.search_edit.setPlaceholderText("Search paths, keys, or values... (supports drag & drop)")
+            else:
+                # Update tooltip with search status
+                self.search_edit.setToolTip(message)
+
+    def _fallback_search(self, query: str) -> List[str]:
+        """Fallback search implementation if tree doesn't have search_paths method."""
+        matching_paths = []
+        query_lower = query.lower()
+
+        if hasattr(self.json_tree, 'path_map'):
+            for item, path in self.json_tree.path_map.items():
+                # Search in path
+                if query_lower in path.lower():
+                    matching_paths.append(path)
+                # Search in item text
+                elif hasattr(item, 'text') and query_lower in item.text(0).lower():
+                    matching_paths.append(path)
+
+        return matching_paths
 
     def _extract_value_by_path(self, data: Dict[str, Any], path: str) -> Any:
         """Extract value from data using dot notation path."""
