@@ -475,50 +475,22 @@ def validate_output_key_format(workflow: Workflow) -> List[str]:
 
 def validate_script_syntax(workflow: Workflow) -> List[str]:
     """
-    Perform basic syntax validation on script code.
+    Perform comprehensive APIthon script validation.
 
-    APIthon scripts are executed as function bodies, so 'return' statements are valid.
+    This function now uses the enhanced APIthon validator for strict compliance
+    with APIthon restrictions and YAML formatting requirements.
 
     Args:
         workflow: The Workflow instance to validate
 
     Returns:
-        List of script syntax validation errors
+        List of APIthon script validation errors
     """
-    errors = []
+    # Import here to avoid circular imports
+    from apiton_validator import validate_workflow_apiton_scripts
 
-    for i, step in enumerate(workflow.steps):
-        step_num = i + 1
-
-        if isinstance(step, ScriptStep) and step.code:
-            # APIthon scripts are executed as function bodies, so we need to wrap them
-            # in a function definition for syntax validation
-            wrapped_code = f"def apiton_script():\n"
-            # Indent each line of the user's code
-            indented_code = '\n'.join(f"    {line}" for line in step.code.split('\n'))
-            wrapped_code += indented_code
-
-            syntax_error_found = False
-            try:
-                compile(wrapped_code, f'<step_{step_num}_script>', 'exec')
-            except SyntaxError as e:
-                syntax_error_found = True
-                # Adjust line numbers in error messages since we wrapped the code
-                error_msg = str(e)
-                if hasattr(e, 'lineno') and e.lineno and e.lineno > 1:
-                    # Subtract 1 from line number to account for the function wrapper
-                    adjusted_lineno = e.lineno - 1
-                    error_msg = error_msg.replace(f"line {e.lineno}", f"line {adjusted_lineno}")
-                errors.append(f"Step {step_num}: Script syntax error - {error_msg}")
-            except Exception as e:
-                syntax_error_found = True
-                errors.append(f"Step {step_num}: Script compilation error - {str(e)}")
-
-            # Only check for return statement if there are no syntax errors
-            if not syntax_error_found and 'return' not in step.code:
-                errors.append(f"Step {step_num}: Script should contain a 'return' statement")
-
-    return errors
+    # Use the comprehensive APIthon validation
+    return validate_workflow_apiton_scripts(workflow)
 
 
 def comprehensive_validate(workflow: Workflow, initial_data_context: DataContext = None) -> List[str]:

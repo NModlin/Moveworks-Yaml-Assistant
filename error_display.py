@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit,
     QScrollArea, QFrame, QDialog, QDialogButtonBox, QTreeWidget, QTreeWidgetItem,
-    QSplitter, QGroupBox, QListWidget, QListWidgetItem
+    QSplitter, QGroupBox, QListWidget, QListWidgetItem, QFormLayout
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QIcon, QPalette, QPixmap, QPainter
@@ -254,6 +254,145 @@ class ValidationDialog(QDialog):
         from PySide6.QtWidgets import QApplication
         error_text = "\n".join(self.errors)
         QApplication.clipboard().setText(error_text)
+
+
+class APIthonValidationWidget(QWidget):
+    """Specialized widget for displaying APIthon validation results."""
+
+    def __init__(self):
+        super().__init__()
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Set up the APIthon validation widget UI."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+
+        # Header
+        header_label = QLabel("APIthon Validation")
+        header_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2c3e50;")
+        layout.addWidget(header_label)
+
+        # Resource usage section
+        resource_group = QGroupBox("Resource Usage")
+        resource_layout = QFormLayout(resource_group)
+
+        self.code_size_label = QLabel("0 / 4096 bytes")
+        resource_layout.addRow("Code Size:", self.code_size_label)
+
+        self.string_count_label = QLabel("0 strings checked")
+        resource_layout.addRow("String Validation:", self.string_count_label)
+
+        self.numeric_count_label = QLabel("0 numbers checked")
+        resource_layout.addRow("Numeric Validation:", self.numeric_count_label)
+
+        layout.addWidget(resource_group)
+
+        # Return analysis section
+        return_group = QGroupBox("Return Value Analysis")
+        return_layout = QFormLayout(return_group)
+
+        self.return_type_label = QLabel("Not analyzed")
+        return_layout.addRow("Last Statement:", self.return_type_label)
+
+        self.return_suggestion_label = QLabel("")
+        self.return_suggestion_label.setWordWrap(True)
+        self.return_suggestion_label.setStyleSheet("color: #666; font-size: 10px;")
+        return_layout.addRow("Suggestion:", self.return_suggestion_label)
+
+        layout.addWidget(return_group)
+
+        # Citation compliance section
+        citation_group = QGroupBox("Citation Compliance")
+        citation_layout = QFormLayout(citation_group)
+
+        self.citation_status_label = QLabel("Not applicable")
+        citation_layout.addRow("Status:", self.citation_status_label)
+
+        self.citation_fields_label = QLabel("")
+        self.citation_fields_label.setWordWrap(True)
+        self.citation_fields_label.setStyleSheet("color: #666; font-size: 10px;")
+        citation_layout.addRow("Fields:", self.citation_fields_label)
+
+        layout.addWidget(citation_group)
+
+        layout.addStretch()
+
+    def update_validation_result(self, result):
+        """Update the widget with APIthon validation results."""
+        from enhanced_apiton_validator import APIthonValidationResult
+
+        if not isinstance(result, APIthonValidationResult):
+            return
+
+        # Update resource usage
+        if result.resource_usage:
+            code_bytes = result.resource_usage.get('code_bytes', 0)
+            code_limit = result.resource_usage.get('code_bytes_limit', 4096)
+            self.code_size_label.setText(f"{code_bytes} / {code_limit} bytes")
+
+            # Color code based on usage
+            if code_bytes > code_limit * 0.8:
+                self.code_size_label.setStyleSheet("color: #f44336; font-weight: bold;")
+            elif code_bytes > code_limit * 0.6:
+                self.code_size_label.setStyleSheet("color: #ff9800; font-weight: bold;")
+            else:
+                self.code_size_label.setStyleSheet("color: #4caf50;")
+
+        # Update return analysis
+        if result.return_analysis:
+            last_type = result.return_analysis.get('last_statement_type', 'Unknown')
+            has_return = result.return_analysis.get('has_explicit_return', False)
+
+            if has_return:
+                self.return_type_label.setText(f"{last_type} (explicit return)")
+                self.return_type_label.setStyleSheet("color: #4caf50;")
+            else:
+                self.return_type_label.setText(f"{last_type} (implicit return)")
+                if last_type == 'Assign':
+                    self.return_type_label.setStyleSheet("color: #ff9800;")
+                else:
+                    self.return_type_label.setStyleSheet("color: #666;")
+
+            # Show suggestions
+            if result.suggestions:
+                suggestion_text = "; ".join(result.suggestions[:2])  # Show first 2 suggestions
+                self.return_suggestion_label.setText(suggestion_text)
+            else:
+                self.return_suggestion_label.setText("No suggestions")
+
+        # Update citation compliance
+        if result.citation_compliance:
+            is_reserved = result.citation_compliance.get('is_reserved', False)
+            if is_reserved:
+                status = result.citation_compliance.get('compliance_status', 'unknown')
+                output_key = result.citation_compliance.get('output_key', '')
+
+                if status == 'partial':
+                    self.citation_status_label.setText(f"Partial compliance ({output_key})")
+                    self.citation_status_label.setStyleSheet("color: #ff9800;")
+                elif status == 'non_compliant':
+                    self.citation_status_label.setText(f"Non-compliant ({output_key})")
+                    self.citation_status_label.setStyleSheet("color: #f44336;")
+                else:
+                    self.citation_status_label.setText(f"Compliant ({output_key})")
+                    self.citation_status_label.setStyleSheet("color: #4caf50;")
+
+                # Show field information
+                found_fields = result.citation_compliance.get('found_fields', [])
+                missing_fields = result.citation_compliance.get('missing_fields', [])
+
+                if found_fields or missing_fields:
+                    field_text = f"Found: {', '.join(found_fields) if found_fields else 'none'}"
+                    if missing_fields:
+                        field_text += f" | Missing: {', '.join(missing_fields)}"
+                    self.citation_fields_label.setText(field_text)
+                else:
+                    self.citation_fields_label.setText("No citation fields detected")
+            else:
+                self.citation_status_label.setText("Not applicable")
+                self.citation_status_label.setStyleSheet("color: #666;")
+                self.citation_fields_label.setText("")
 
 
 class StatusIndicator(QLabel):

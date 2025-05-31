@@ -35,6 +35,9 @@ from template_library import TemplateBrowserDialog, template_library
 from enhanced_json_selector import EnhancedJsonPathSelector
 from contextual_examples import ContextualExamplesPanel
 from enhanced_validator import enhanced_validator, ValidationError
+from enhanced_script_editor import EnhancedScriptEditor
+from enhanced_apiton_validator import enhanced_apiton_validator, APIthonValidationResult
+from error_display import APIthonValidationWidget
 
 
 class WorkflowListWidget(QListWidget):
@@ -305,21 +308,11 @@ class StepConfigurationPanel(QStackedWidget):
 
         layout.addWidget(form_group)
 
-        # Script code section
-        code_group = QGroupBox("APIthon Script Code")
-        code_layout = QVBoxLayout(code_group)
-
-        self.script_code_edit = QTextEdit()
-        self.script_code_edit.setObjectName("script_code_edit")  # For tutorial targeting
-        self.script_code_edit.setPlaceholderText("Enter your APIthon script code here...\n\n# Example:\nuser_name = data.user_info.user.name\nresult = {'greeting': f'Hello, {user_name}!'}\nreturn result")
-        self.script_code_edit.setToolTip(get_tooltip("script_code"))
-        font = QFont("Consolas", 10)
-        font.setStyleHint(QFont.Monospace)
-        self.script_code_edit.setFont(font)
-        self.script_code_edit.textChanged.connect(self._on_script_data_changed)
-        code_layout.addWidget(self.script_code_edit)
-
-        layout.addWidget(code_group)
+        # Enhanced script editor section
+        self.enhanced_script_editor = EnhancedScriptEditor()
+        self.enhanced_script_editor.script_changed.connect(self._on_script_data_changed)
+        self.enhanced_script_editor.validation_updated.connect(self._on_script_validation_updated)
+        layout.addWidget(self.enhanced_script_editor)
 
         # Input arguments table
         input_args_group = QGroupBox("Input Arguments")
@@ -399,7 +392,10 @@ class StepConfigurationPanel(QStackedWidget):
         """Populate the script configuration form with step data."""
         self.script_description_edit.setText(step.description or "")
         self.script_output_key_edit.setText(step.output_key or "")
-        self.script_code_edit.setPlainText(step.code or "")
+
+        # Set the script step in the enhanced editor
+        available_data_paths = self._get_available_data_paths_for_step()
+        self.enhanced_script_editor.set_script_step(step, available_data_paths)
 
         # Populate input args table
         self.script_input_args_table.setRowCount(len(step.input_args))
@@ -436,7 +432,7 @@ class StepConfigurationPanel(QStackedWidget):
 
         self.current_step.description = self.script_description_edit.text() or None
         self.current_step.output_key = self.script_output_key_edit.text()
-        self.current_step.code = self.script_code_edit.toPlainText()
+        # Note: script code is now handled by the enhanced editor
 
         # Update input args from table
         self.current_step.input_args = {}
@@ -447,6 +443,59 @@ class StepConfigurationPanel(QStackedWidget):
                 self.current_step.input_args[key_item.text()] = value_item.text()
 
         self.step_updated.emit()
+
+    def _on_script_validation_updated(self, result: APIthonValidationResult):
+        """Handle script validation updates from the enhanced editor."""
+        # Update any UI components that need to respond to validation changes
+        # For example, update the validation panel in the right pane
+        if hasattr(self, 'apiton_validation_widget'):
+            self.apiton_validation_widget.update_validation_result(result)
+
+    def _get_available_data_paths_for_step(self) -> set:
+        """Get available data paths for the current step based on previous steps."""
+        available_paths = set()
+
+        # Add meta_info paths
+        available_paths.add("meta_info.user.email")
+        available_paths.add("meta_info.user.name")
+        available_paths.add("meta_info.user.id")
+
+        # Add data paths from previous steps
+        if hasattr(self, 'workflow_list') and self.workflow_list.workflow:
+            current_index = getattr(self, 'current_step_index', -1)
+            for i, step in enumerate(self.workflow_list.workflow.steps):
+                if i >= current_index and current_index >= 0:
+                    break  # Don't include current step or later steps
+
+                if step.output_key:
+                    available_paths.add(f"data.{step.output_key}")
+
+                    # If step has parsed JSON, add nested paths
+                    if hasattr(step, 'parsed_json_output') and step.parsed_json_output:
+                        self._add_json_paths_recursive(
+                            step.parsed_json_output,
+                            f"data.{step.output_key}",
+                            available_paths
+                        )
+
+        return available_paths
+
+    def _add_json_paths_recursive(self, data: Any, path_prefix: str, paths: set, max_depth: int = 3):
+        """Recursively add JSON paths to the available paths set."""
+        if max_depth <= 0:
+            return
+
+        if isinstance(data, dict):
+            for key, value in data.items():
+                new_path = f"{path_prefix}.{key}"
+                paths.add(new_path)
+                if isinstance(value, (dict, list)):
+                    self._add_json_paths_recursive(value, new_path, paths, max_depth - 1)
+        elif isinstance(data, list) and data:
+            # Add array access pattern
+            paths.add(f"{path_prefix}[0]")
+            if isinstance(data[0], (dict, list)):
+                self._add_json_paths_recursive(data[0], f"{path_prefix}[0]", paths, max_depth - 1)
 
     def _add_action_input_arg(self):
         """Add a new row to the action input args table."""
@@ -713,8 +762,10 @@ class YamlPreviewPanel(QWidget):
             return
 
         try:
-            # Generate YAML
-            yaml_content = generate_yaml_string(self.workflow)
+            # Generate YAML with action name
+            action_name = getattr(self.parent(), 'action_name_edit', None)
+            action_name_value = action_name.text() if action_name else "compound_action"
+            yaml_content = generate_yaml_string(self.workflow, action_name_value)
             self.yaml_text.setPlainText(yaml_content)
 
             # Validate workflow
@@ -1203,6 +1254,47 @@ class MainWindow(QMainWindow):
         """)
         layout.addWidget(header_label)
 
+        # Action name input for compound action
+        action_name_group = QGroupBox("Compound Action Name")
+        action_name_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #333;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                margin-top: 8px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        action_name_layout = QVBoxLayout(action_name_group)
+
+        self.action_name_edit = QLineEdit()
+        self.action_name_edit.setPlaceholderText("e.g., my_compound_action")
+        self.action_name_edit.setText("compound_action")
+        self.action_name_edit.setToolTip("Name for the compound action (required for Moveworks compliance)")
+        self.action_name_edit.textChanged.connect(self._on_action_name_changed)
+        self.action_name_edit.setStyleSheet("""
+            QLineEdit {
+                color: #2c3e50;
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QLineEdit:focus {
+                border-color: #3498db;
+            }
+        """)
+        action_name_layout.addWidget(self.action_name_edit)
+        layout.addWidget(action_name_group)
+
         # Step list
         self.workflow_list = WorkflowListWidget()
         self.workflow_list.setStyleSheet("""
@@ -1474,6 +1566,10 @@ class MainWindow(QMainWindow):
         # Validation Results Tab
         self.validation_panel = self._create_validation_panel()
         right_tabs.addTab(self.validation_panel, "✅ Validation")
+
+        # APIthon Validation Tab
+        self.apiton_validation_widget = APIthonValidationWidget()
+        right_tabs.addTab(self.apiton_validation_widget, "🐍 APIthon")
 
         layout.addWidget(right_tabs)
         return panel
@@ -1887,6 +1983,12 @@ class MainWindow(QMainWindow):
         # For now, we just copy it to clipboard
         QApplication.clipboard().setText(path)
 
+    def _on_action_name_changed(self):
+        """Handle action name changes."""
+        # Refresh YAML when action name changes
+        if hasattr(self, 'yaml_panel'):
+            self.yaml_panel.refresh_yaml()
+
     def _update_all_panels(self):
         """Update all panels with the current workflow."""
         self.enhanced_json_panel.set_workflow(self.workflow_list.workflow)
@@ -1921,7 +2023,8 @@ class MainWindow(QMainWindow):
 
         if filename:
             try:
-                yaml_content = generate_yaml_string(self.workflow_list.workflow)
+                action_name_value = self.action_name_edit.text() if hasattr(self, 'action_name_edit') else "compound_action"
+                yaml_content = generate_yaml_string(self.workflow_list.workflow, action_name_value)
                 with open(filename, 'w', encoding='utf-8') as f:
                     f.write(yaml_content)
                 QMessageBox.information(self, "Export Successful", f"YAML exported to:\n{filename}")
@@ -2137,7 +2240,8 @@ class MainWindow(QMainWindow):
 
         if filename:
             try:
-                yaml_content = generate_yaml_string(self.workflow_list.workflow)
+                action_name_value = self.action_name_edit.text() if hasattr(self, 'action_name_edit') else "compound_action"
+                yaml_content = generate_yaml_string(self.workflow_list.workflow, action_name_value)
                 with open(filename, 'w') as f:
                     f.write(yaml_content)
 

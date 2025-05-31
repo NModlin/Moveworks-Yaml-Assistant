@@ -39,36 +39,65 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
             'output_key': output_key
         }
 
-        # Add optional fields in the correct order
+        # Add optional fields in the correct order with proper type enforcement
         if step.input_args:
-            action_dict['input_args'] = step.input_args
+            if isinstance(step.input_args, dict):
+                action_dict['input_args'] = step.input_args
+            else:
+                # Convert to dict if not already
+                action_dict['input_args'] = dict(step.input_args) if step.input_args else {}
+
+        if step.description:
+            action_dict['description'] = str(step.description)
 
         if step.delay_config:
-            # Ensure delay_config has proper structure
-            delay_config = step.delay_config.copy() if isinstance(step.delay_config, dict) else step.delay_config
-            action_dict['delay_config'] = delay_config
+            if isinstance(step.delay_config, dict):
+                # Ensure delay_seconds is an integer
+                delay_config = step.delay_config.copy()
+                if 'delay_seconds' in delay_config:
+                    try:
+                        delay_config['delay_seconds'] = int(delay_config['delay_seconds'])
+                    except (ValueError, TypeError):
+                        delay_config['delay_seconds'] = 0
+                action_dict['delay_config'] = delay_config
+            else:
+                action_dict['delay_config'] = step.delay_config
 
         if step.progress_updates:
-            action_dict['progress_updates'] = step.progress_updates
+            if isinstance(step.progress_updates, dict):
+                action_dict['progress_updates'] = step.progress_updates
+            else:
+                # Convert to dict if not already
+                action_dict['progress_updates'] = dict(step.progress_updates) if step.progress_updates else {}
 
         step_dict['action'] = action_dict
 
     elif isinstance(step, ScriptStep):
-        # Create script dict following yaml_syntex.md format
+        # Create script dict following APIthon YAML format requirements
         # Use default values for empty required fields to prevent validation errors
         output_key = step.output_key if step.output_key and step.output_key.strip() else ''
         code = step.code if step.code and step.code.strip() else ''
 
-        script_dict = {
-            'output_key': output_key
-        }
+        script_dict = {}
 
-        # Add input_args before code if present
-        if step.input_args:
-            script_dict['input_args'] = step.input_args
-
-        # Add code field
+        # Add code field first with proper YAML literal block scalar format
+        # The YAML library will handle the literal block scalar (|) formatting
         script_dict['code'] = code
+
+        # Add output_key as required field
+        script_dict['output_key'] = output_key
+
+        # Add input_args if present (optional field) - enforce dict type
+        if step.input_args:
+            if isinstance(step.input_args, dict):
+                script_dict['input_args'] = step.input_args
+            else:
+                # Convert to dict if not already
+                script_dict['input_args'] = dict(step.input_args) if step.input_args else {}
+
+        # Add description if present
+        if step.description:
+            script_dict['description'] = str(step.description)
 
         step_dict['script'] = script_dict
 
@@ -207,16 +236,19 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
     return step_dict
 
 
-def workflow_to_yaml_dict(workflow: Workflow) -> Dict[str, Any]:
+def workflow_to_yaml_dict(workflow: Workflow, action_name: str = None) -> Dict[str, Any]:
     """
     Convert a Workflow instance into a Python dictionary suitable for YAML serialization.
 
-    Following yaml_syntex.md format:
-    - Single expression: no 'steps' wrapper
-    - Multiple expressions: wrapped in 'steps' list
+    Following Moveworks Compound Action format requirements:
+    - Mandatory top-level fields: action_name (string) and steps (list)
+    - Single expression: wrapped in steps list for consistency
+    - Multiple expressions: wrapped in steps list
+    - Proper data type enforcement for all fields
 
     Args:
         workflow: The Workflow instance to convert
+        action_name: Optional action name for the compound action
 
     Returns:
         Dictionary representing the workflow in YAML-compatible format
@@ -228,35 +260,50 @@ def workflow_to_yaml_dict(workflow: Workflow) -> Dict[str, Any]:
         if step_dict:  # Only add non-empty step dictionaries
             steps_list.append(step_dict)
 
-    # Handle single expression vs multiple expressions
-    if len(steps_list) == 1:
-        # Single expression - return without 'steps' wrapper
-        return steps_list[0]
-    else:
-        # Multiple expressions - wrap in 'steps' list
-        return {'steps': steps_list}
+    # Create the compound action structure with mandatory fields
+    compound_action = {
+        "action_name": action_name or "compound_action",
+        "steps": steps_list
+    }
+
+    return compound_action
 
 
-def generate_yaml_string(workflow: Workflow) -> str:
+def generate_yaml_string(workflow: Workflow, action_name: str = None) -> str:
     """
-    Generate a YAML string from a Workflow instance.
+    Generate a YAML string from a Workflow instance with proper APIthon script formatting.
 
     Args:
         workflow: The Workflow instance to convert
+        action_name: Optional action name for the compound action
 
     Returns:
-        YAML string representation of the workflow
+        YAML string representation of the workflow with literal block scalars for script code
     """
-    workflow_dict = workflow_to_yaml_dict(workflow)
+    workflow_dict = workflow_to_yaml_dict(workflow, action_name)
 
-    # Configure YAML output for proper formatting
-    yaml_string = yaml.dump(
-        workflow_dict,
-        default_flow_style=False,
-        indent=2,
-        sort_keys=False,
-        allow_unicode=True
-    )
+    # Custom YAML representer for multiline strings to use literal block scalar (|)
+    def represent_literal_str(dumper, data):
+        if '\n' in data:
+            return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+        return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
+    # Add custom representer for script code
+    yaml.add_representer(str, represent_literal_str)
+
+    try:
+        # Configure YAML output for proper formatting
+        yaml_string = yaml.dump(
+            workflow_dict,
+            default_flow_style=False,
+            indent=2,
+            sort_keys=False,
+            allow_unicode=True,
+            width=1000  # Prevent line wrapping for long strings
+        )
+    finally:
+        # Reset the representer to avoid affecting other YAML operations
+        yaml.representer.Representer.yaml_representers[str] = yaml.representer.Representer.represent_str
 
     return yaml_string
 
