@@ -1,14 +1,34 @@
-# Core dependencies for Moveworks YAML Assistant
-# Phase 1: Core Engine
-PyYAML>=6.0
-click>=8.0.0
+# Moveworks YAML Assistant - Production Dependencies
+# Python 3.10+ required
 
-# Phase 2: PySide6 Desktop UI
-PySide6>=6.5.0
+# ============================================================================
+# CORE DEPENDENCIES
+# ============================================================================
 
-# Development and testing
-pytest>=7.0.0
-pytest-qt>=4.0.0
+# YAML Processing
+PyYAML>=6.0,<7.0.0
 
-# Optional: For better JSON handling and validation
-jsonschema>=4.0.0
+# Command Line Interface
+click>=8.0.0,<9.0.0
+
+# ============================================================================
+# DESKTOP UI FRAMEWORK
+# ============================================================================
+
+# PySide6 for desktop GUI application
+PySide6>=6.5.0,<7.0.0
+
+# ============================================================================
+# DATA VALIDATION AND PROCESSING
+# ============================================================================
+
+# JSON Schema validation for enhanced data validation
+jsonschema>=4.0.0,<5.0.0
+
+# ============================================================================
+# DEVELOPMENT AND TESTING (Optional - see requirements-dev.txt)
+# ============================================================================
+
+# Uncomment for development environment:
+# pytest>=7.0.0,<8.0.0
+# pytest-qt>=4.0.0,<5.0.0

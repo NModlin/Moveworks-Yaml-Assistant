@@ -322,7 +322,7 @@ class ComprehensiveTutorialSystem:
                     title="Add Sample JSON Output",
                     description="Provide sample response data",
                     instruction="In the 'User Provided JSON Output' field, add sample user data. This enables the JSON Path Selector for subsequent steps.",
-                    target_element="json_output_field",
+                    target_element="json_output_edit",
                     action_type="copy_paste",
                     action_data={
                         "text": '{"user": {"id": "emp_12345", "name": "John Doe", "email": "john.doe@company.com", "department": "Engineering", "manager": {"id": "mgr_67890", "name": "Jane Smith", "email": "jane.smith@company.com"}, "active": true}}'
@@ -384,13 +384,13 @@ class ComprehensiveTutorialSystem:
         module_2_tutorial = Tutorial(
             id="module_2_it_automation",
             title="Module 2: IT Automation",
-            description="ServiceNow/Jira ticket creation with cURL import and parameterization",
+            description="ServiceNow/Jira ticket creation with HTTP requests and parameterization",
             category=TutorialCategory.EXPRESSION_TYPES,
             difficulty=TutorialDifficulty.INTERMEDIATE,
             estimated_time="20 minutes",
             prerequisites=["module_1_basic_compound_action"],
             learning_objectives=[
-                "Import and convert cURL commands to action steps",
+                "Create HTTP request action steps for API integration",
                 "Use parameterization with {{{VARIABLES}}} for dynamic values",
                 "Leverage the template library for common IT automation patterns",
                 "Configure delay settings and progress updates for user experience",
@@ -412,10 +412,10 @@ class ComprehensiveTutorialSystem:
                     action_data={"text": "critical_alert_incident_response"}
                 ),
                 TutorialStep(
-                    title="Import ServiceNow cURL Command",
-                    description="Convert cURL to action step",
-                    instruction="Click 'Import' → 'From cURL' to import a ServiceNow API call. This feature automatically converts cURL commands to properly formatted action steps.",
-                    target_element="import_curl_button",
+                    title="Add ServiceNow HTTP Request",
+                    description="Create ServiceNow API action step",
+                    instruction="Click 'Add Step' → 'Action Step' to create an HTTP request for ServiceNow incident creation. We'll configure this as an API call.",
+                    target_element="add_action_button",
                     action_type="click"
                 ),
                 TutorialStep(
@@ -434,14 +434,14 @@ class ComprehensiveTutorialSystem:
                     title="Add Progress Updates",
                     description="Enhance user experience",
                     instruction="In the action configuration, add progress updates: On Pending: 'Creating ServiceNow incident...', On Complete: 'ServiceNow incident created successfully'. Also set delay_seconds to 5.",
-                    target_element="progress_updates_section",
+                    target_element="action_config_panel",
                     action_type="info"
                 ),
                 TutorialStep(
                     title="Add Sample ServiceNow Response",
                     description="Enable data path selection",
                     instruction="Add sample JSON output showing a ServiceNow incident response. This enables the JSON Path Selector for linking to subsequent steps.",
-                    target_element="json_output_field",
+                    target_element="json_output_edit",
                     action_type="copy_paste",
                     action_data={
                         "text": '{"result": {"sys_id": "abc123def456", "number": "INC0012345", "short_description": "Critical Database Connection Failure", "state": "1", "urgency": "1", "priority": "1"}}'
@@ -510,86 +510,285 @@ class ComprehensiveTutorialSystem:
                 TutorialStep(
                     title="Set Compound Action Name",
                     description="Name your conditional workflow",
-                    instruction="Set the compound action name to 'expense_approval_routing'. This workflow will automatically route expense approvals based on business rules.",
+                    instruction="Set the compound action name to 'expense_approval_routing'. This workflow will route expense approvals based on business rules.",
                     target_element="compound_action_name_field",
                     action_type="type",
                     action_data={"text": "expense_approval_routing"}
                 ),
                 TutorialStep(
-                    title="Add Expense Validation Step",
-                    description="Create data validation action",
-                    instruction="Add an action step with Action Name: 'mw.validate_expense_submission', Output Key: 'expense_validation'. This will validate and enrich the expense data.",
-                    target_element="add_action_button",
-                    action_type="click"
-                ),
-                TutorialStep(
-                    title="Add Sample Expense Data",
-                    description="Provide comprehensive test data",
-                    instruction="Add sample JSON showing expense and employee data. This complex data structure will demonstrate nested data access in switch conditions.",
-                    target_element="json_output_field",
-                    action_type="copy_paste",
-                    action_data={
-                        "text": '{"expense": {"id": "EXP-2024-001", "amount": 750.00, "category": "Travel"}, "employee": {"id": "emp_12345", "name": "John Doe", "department": "Sales", "level": "senior", "manager_id": "mgr_67890", "director_id": "dir_11111"}, "validation": {"is_valid": true, "receipt_verified": true, "policy_compliant": true}}'
-                    }
-                ),
-                TutorialStep(
                     title="Add Switch Expression",
-                    description="Create conditional branching logic",
-                    instruction="Click 'Add Step' → 'Switch Step' to add conditional logic. Set description: 'Route approval based on expense amount and employee level', Output Key: 'approval_routing'.",
+                    description="Create conditional branching",
+                    instruction="Click 'Add Switch Step' to create a conditional expression. This will route expenses based on amount and employee level.",
                     target_element="add_switch_button",
                     action_type="click"
                 ),
                 TutorialStep(
-                    title="Configure Auto-Approval Case",
-                    description="Set up first conditional case",
-                    instruction="Add a case with condition: 'data.expense_validation.expense.amount < 100 && data.expense_validation.validation.is_valid == true'. Add an auto-approval action step.",
-                    target_element="switch_case_config",
+                    title="Configure Switch Condition",
+                    description="Set up the switch logic",
+                    instruction="Set the switch expression to evaluate 'data.expense_amount'. This will determine which approval path to take based on the expense amount.",
+                    target_element="action_config_panel",
                     action_type="info",
                     action_data={
-                        "condition": "data.expense_validation.expense.amount < 100 && data.expense_validation.validation.is_valid == true",
-                        "case_type": "auto_approval"
+                        "switch_expression": "data.expense_amount",
+                        "cases": ["< 100", "< 1000", ">= 1000"]
                     }
                 ),
                 TutorialStep(
-                    title="Configure Manager Approval Case",
-                    description="Add manager approval logic",
-                    instruction="Add a second case for manager approval: 'data.expense_validation.expense.amount >= 100 && data.expense_validation.expense.amount <= 1000'. Add manager notification action.",
-                    target_element="switch_case_config",
-                    action_type="info",
-                    action_data={
-                        "condition": "data.expense_validation.expense.amount >= 100 && data.expense_validation.expense.amount <= 1000",
-                        "case_type": "manager_approval"
-                    }
+                    title="Add Case for Small Expenses",
+                    description="Handle expenses under $100",
+                    instruction="Add a case for expenses under $100 that auto-approves. Set condition: 'data.expense_amount < 100' and action: 'mw.auto_approve'.",
+                    target_element="action_config_panel",
+                    action_type="info"
                 ),
                 TutorialStep(
-                    title="Configure Default Case",
-                    description="Handle high-value expenses",
-                    instruction="Add a default case for expenses over $1000 that require director approval. Default cases handle all scenarios not covered by specific conditions.",
-                    target_element="switch_default_config",
-                    action_type="info",
-                    action_data={
-                        "case_type": "director_approval",
-                        "escalation_reason": "Amount exceeds $1000 threshold"
-                    }
+                    title="Add Case for Medium Expenses",
+                    description="Handle expenses $100-$1000",
+                    instruction="Add a case for medium expenses requiring manager approval. Set condition: 'data.expense_amount < 1000' and route to manager.",
+                    target_element="action_config_panel",
+                    action_type="info"
                 ),
                 TutorialStep(
-                    title="Test Complex Conditions",
-                    description="Validate boolean logic",
-                    instruction="Use the validation panel to test your switch conditions. The system checks for proper DSL syntax, boolean operators (&&, ||), and data path accuracy.",
+                    title="Add Default Case",
+                    description="Handle large expenses",
+                    instruction="Add a default case for expenses over $1000 requiring executive approval. This ensures all expense amounts are handled.",
+                    target_element="action_config_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Test Switch Logic",
+                    description="Validate conditional flow",
+                    instruction="Use the validation system to test your switch logic with different expense amounts. Ensure all cases are properly handled.",
                     target_element="validate_button",
                     action_type="click"
                 ),
                 TutorialStep(
-                    title="Review Switch YAML Structure",
-                    description="Understand conditional YAML",
-                    instruction="Examine the YAML preview to see how switch expressions are structured with cases, conditions, and default blocks. Notice the proper nesting and data references.",
+                    title="Review Conditional YAML",
+                    description="Examine switch structure",
+                    instruction="Check the YAML Preview to see how switch expressions are structured. Notice the cases array and default handling.",
                     target_element="yaml_preview_panel",
                     action_type="info"
                 ),
                 TutorialStep(
                     title="Module 3 Complete!",
                     description="Conditional logic mastered",
-                    instruction="Outstanding! You've built a sophisticated approval routing system with complex conditional logic. Ready for Module 4: Data Processing with APIthon scripts?",
+                    instruction="Excellent! You've mastered conditional logic with switch expressions. Ready for Module 4: Data Processing?",
+                    action_type="info"
+                )
+            ]
+        )
+
+        # Module 4: Data Processing - List Handling with Script Steps
+        module_4_tutorial = Tutorial(
+            id="module_4_data_processing",
+            title="Module 4: Data Processing",
+            description="List handling and data transformations with APIthon scripts",
+            category=TutorialCategory.DATA_HANDLING,
+            difficulty=TutorialDifficulty.INTERMEDIATE,
+            estimated_time="22 minutes",
+            prerequisites=["module_3_conditional_logic"],
+            learning_objectives=[
+                "Create APIthon scripts for data processing and transformations",
+                "Handle list operations and data aggregation efficiently",
+                "Implement proper return value logic with educational guidance",
+                "Use literal block scalar YAML formatting for complex scripts",
+                "Validate script compliance with 4096-byte limits and restrictions"
+            ],
+            steps=[
+                TutorialStep(
+                    title="Welcome to Data Processing",
+                    description="Introduction to APIthon scripts",
+                    instruction="Welcome to Module 4! We'll build an employee performance report generator that processes lists of employee data and creates summary reports. This demonstrates advanced data processing with APIthon scripts.",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Set Compound Action Name",
+                    description="Name your data processing workflow",
+                    instruction="Set the compound action name to 'employee_performance_report'. This workflow will process employee data and generate reports.",
+                    target_element="compound_action_name_field",
+                    action_type="type",
+                    action_data={"text": "employee_performance_report"}
+                ),
+                TutorialStep(
+                    title="Add Script Step",
+                    description="Create data processing script",
+                    instruction="Click 'Add Script Step' to create an APIthon script for data processing. Scripts allow complex data transformations.",
+                    target_element="add_script_btn",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Configure Script Details",
+                    description="Set up the script step",
+                    instruction="Set Script Name: 'process_employee_data', Output Key: 'processed_results'. This script will handle list processing and aggregation.",
+                    target_element="action_config_panel",
+                    action_type="info",
+                    action_data={
+                        "script_name": "process_employee_data",
+                        "output_key": "processed_results"
+                    }
+                ),
+                TutorialStep(
+                    title="Write Data Processing Script",
+                    description="Implement list processing logic",
+                    instruction="Add the APIthon script for processing employee performance data. Use list comprehensions and aggregation functions.",
+                    target_element="action_config_panel",
+                    action_type="copy_paste",
+                    action_data={
+                        "text": """# Process employee performance data
+employees = data.employee_list
+high_performers = [emp for emp in employees if emp.get('score', 0) >= 85]
+avg_score = sum(emp.get('score', 0) for emp in employees) / len(employees)
+
+# Generate summary report
+report = {
+    'total_employees': len(employees),
+    'high_performers': len(high_performers),
+    'average_score': round(avg_score, 2),
+    'top_performer': max(employees, key=lambda x: x.get('score', 0))
+}
+
+return report"""
+                    }
+                ),
+                TutorialStep(
+                    title="Validate Script Compliance",
+                    description="Check APIthon restrictions",
+                    instruction="Run validation to ensure your script meets APIthon requirements: no imports, under 4096 bytes, proper return logic.",
+                    target_element="validate_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Add Sample Input Data",
+                    description="Provide test data",
+                    instruction="Add sample employee data to test your script. This enables the JSON Path Selector for subsequent steps.",
+                    target_element="json_output_edit",
+                    action_type="copy_paste",
+                    action_data={
+                        "text": '{"employee_list": [{"id": "emp1", "name": "Alice", "score": 92}, {"id": "emp2", "name": "Bob", "score": 78}, {"id": "emp3", "name": "Carol", "score": 88}]}'
+                    }
+                ),
+                TutorialStep(
+                    title="Add Report Generation Action",
+                    description="Create final report",
+                    instruction="Add an Action Step to generate the final report using the processed data. Reference script output with data.processed_results.",
+                    target_element="add_action_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Review Data Flow",
+                    description="Examine the complete workflow",
+                    instruction="Check the YAML Preview to see how script steps integrate with action steps. Notice the literal block scalar formatting for the script.",
+                    target_element="yaml_preview_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Module 4 Complete!",
+                    description="Data processing mastered",
+                    instruction="Outstanding! You've mastered data processing with APIthon scripts and list operations. Ready for Module 5: Error Handling?",
+                    action_type="info"
+                )
+            ]
+        )
+
+        # Module 5: Error Handling - Robust API Calls with Try-Catch
+        module_5_tutorial = Tutorial(
+            id="module_5_error_handling",
+            title="Module 5: Error Handling",
+            description="Robust workflows with try-catch expressions and error recovery",
+            category=TutorialCategory.BEST_PRACTICES,
+            difficulty=TutorialDifficulty.ADVANCED,
+            estimated_time="25 minutes",
+            prerequisites=["module_4_data_processing"],
+            learning_objectives=[
+                "Implement try-catch expressions for robust error handling",
+                "Design error recovery strategies and fallback mechanisms",
+                "Use TryCatchStep class with comprehensive error reporting",
+                "Handle API failures gracefully with retry logic",
+                "Create enterprise-grade workflows with proper error management"
+            ],
+            steps=[
+                TutorialStep(
+                    title="Welcome to Error Handling",
+                    description="Introduction to robust workflows",
+                    instruction="Welcome to Module 5! We'll build a multi-system data synchronization workflow with comprehensive error handling. This demonstrates enterprise-grade error recovery and resilience patterns.",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Set Compound Action Name",
+                    description="Name your resilient workflow",
+                    instruction="Set the compound action name to 'resilient_data_sync'. This workflow will handle errors gracefully across multiple systems.",
+                    target_element="compound_action_name_field",
+                    action_type="type",
+                    action_data={"text": "resilient_data_sync"}
+                ),
+                TutorialStep(
+                    title="Add Try-Catch Expression",
+                    description="Create error handling block",
+                    instruction="Click 'Add Try/Catch Step' to create an error handling expression. This will wrap risky operations with error recovery.",
+                    target_element="add_try_catch_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Configure Try Block",
+                    description="Set up the main operation",
+                    instruction="In the try block, add an API call that might fail. Set Action Name: 'http_request', URL: 'https://api.system1.com/sync'.",
+                    target_element="action_config_panel",
+                    action_type="info",
+                    action_data={
+                        "action_name": "http_request",
+                        "url": "https://api.system1.com/sync",
+                        "output_key": "sync_result"
+                    }
+                ),
+                TutorialStep(
+                    title="Configure Catch Block",
+                    description="Set up error recovery",
+                    instruction="In the catch block, add a fallback action. Set Action Name: 'mw.log_error' and add notification to administrators.",
+                    target_element="action_config_panel",
+                    action_type="info",
+                    action_data={
+                        "action_name": "mw.log_error",
+                        "fallback_action": "mw.send_admin_notification"
+                    }
+                ),
+                TutorialStep(
+                    title="Add Retry Logic",
+                    description="Implement retry mechanism",
+                    instruction="Configure retry settings: max_retries: 3, retry_delay: 5. This provides resilience against temporary failures.",
+                    target_element="action_config_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Add Finally Block",
+                    description="Ensure cleanup operations",
+                    instruction="Add a finally block to ensure cleanup operations always run, regardless of success or failure.",
+                    target_element="action_config_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Test Error Scenarios",
+                    description="Validate error handling",
+                    instruction="Use the validation system to test various error scenarios. Ensure your workflow handles all failure modes gracefully.",
+                    target_element="validate_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Add Monitoring and Alerts",
+                    description="Complete the resilient workflow",
+                    instruction="Add monitoring actions to track success/failure rates and alert administrators when error thresholds are exceeded.",
+                    target_element="add_action_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Review Error Handling YAML",
+                    description="Examine the complete structure",
+                    instruction="Check the YAML Preview to see how try-catch expressions are structured. Notice the comprehensive error handling patterns.",
+                    target_element="yaml_preview_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Module 5 Complete!",
+                    description="Error handling mastered",
+                    instruction="Congratulations! You've completed all 5 modules and mastered Moveworks compound actions. You can now build enterprise-grade workflows with confidence!",
                     action_type="info"
                 )
             ]
@@ -637,7 +836,7 @@ class ComprehensiveTutorialSystem:
                     title="Add Sample Employee List",
                     description="Provide complex array data",
                     instruction="Add sample JSON with multiple employees and performance metrics. This demonstrates list processing capabilities.",
-                    target_element="json_output_field",
+                    target_element="json_output_edit",
                     action_type="copy_paste",
                     action_data={
                         "text": '{"employees": [{"id": "emp_001", "name": "Alice Johnson", "department": "Engineering", "performance_score": 92, "goals_completed": 8, "goals_total": 10}, {"id": "emp_002", "name": "Bob Smith", "department": "Engineering", "performance_score": 78, "goals_completed": 6, "goals_total": 10}, {"id": "emp_003", "name": "Carol Davis", "department": "Engineering", "performance_score": 95, "goals_completed": 10, "goals_total": 10}], "metadata": {"total_count": 3, "department": "Engineering", "report_period": "Q4 2024"}}'
@@ -654,7 +853,7 @@ class ComprehensiveTutorialSystem:
                     title="Write APIthon Processing Code",
                     description="Implement list processing logic",
                     instruction="Write APIthon code using list comprehensions, aggregation functions, and data transformations. Remember the 4096-byte limit and include a return statement.",
-                    target_element="script_code_editor",
+                    target_element="action_config_panel",
                     action_type="info",
                     action_data={
                         "code_template": "employees = data.employee_data.employees\n# Calculate statistics\ntotal_score = sum([emp.performance_score for emp in employees])\navg_score = total_score / len(employees)\n# Find top performers\ntop_performers = [emp for emp in employees if emp.performance_score > avg_score]\nreturn {'average_score': avg_score, 'top_performers': top_performers}"

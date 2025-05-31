@@ -1791,6 +1791,7 @@ class MainWindow(QMainWindow):
         config_layout.setSpacing(8)
 
         self.config_panel = StepConfigurationPanel()
+        self.config_panel.setObjectName("action_config_panel")  # For tutorial targeting
         self.config_panel.step_updated.connect(self._on_step_updated)
         config_layout.addWidget(self.config_panel)
 
@@ -2139,6 +2140,7 @@ class MainWindow(QMainWindow):
 
         # Template library
         template_action = QAction("Template Library...", self)
+        template_action.setObjectName("template_library_button")  # For tutorial targeting
         template_action.setShortcut("Ctrl+T")
         template_action.triggered.connect(self._show_template_library)
         file_menu.addAction(template_action)
@@ -2882,8 +2884,123 @@ class MainWindow(QMainWindow):
         )
 
 
+def check_environment():
+    """
+    Check if the environment is properly set up for the GUI application.
+
+    Returns:
+        Tuple[bool, str]: (success, error_message)
+    """
+    import importlib.util
+
+    # Check Python version
+    if sys.version_info < (3, 10):
+        return False, f"Python 3.10+ required, but you have {sys.version.split()[0]}"
+
+    # Check critical dependencies
+    critical_deps = [
+        ('PySide6', 'PySide6'),
+        ('yaml', 'PyYAML'),
+    ]
+
+    missing_deps = []
+    for import_name, package_name in critical_deps:
+        if importlib.util.find_spec(import_name) is None:
+            missing_deps.append(package_name)
+
+    if missing_deps:
+        deps_list = ', '.join(missing_deps)
+        return False, f"Missing critical dependencies: {deps_list}"
+
+    return True, ""
+
+
+def show_environment_error(error_message: str):
+    """Show environment error dialog with setup instructions."""
+    try:
+        from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
+        from PySide6.QtCore import QProcess
+
+        app = QApplication.instance()
+        if app is None:
+            app = QApplication(sys.argv)
+
+        # Create error dialog
+        msg_box = QMessageBox()
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.setWindowTitle("Environment Setup Required")
+        msg_box.setText("Environment Setup Required")
+        msg_box.setInformativeText(
+            f"The Moveworks YAML Assistant cannot start due to environment issues:\n\n"
+            f"{error_message}\n\n"
+            f"Would you like to set up the environment automatically?"
+        )
+
+        # Add custom buttons
+        setup_button = msg_box.addButton("Setup Environment", QMessageBox.ActionRole)
+        manual_button = msg_box.addButton("Manual Instructions", QMessageBox.ActionRole)
+        cancel_button = msg_box.addButton("Cancel", QMessageBox.RejectRole)
+
+        msg_box.setDefaultButton(setup_button)
+        msg_box.exec()
+
+        clicked_button = msg_box.clickedButton()
+
+        if clicked_button == setup_button:
+            # Launch setup process
+            process = QProcess()
+            process.start(sys.executable, ["run_app.py", "--setup-only"])
+            process.waitForFinished(60000)  # Wait up to 60 seconds
+
+            if process.exitCode() == 0:
+                QMessageBox.information(
+                    None,
+                    "Setup Complete",
+                    "Environment setup completed successfully!\n\n"
+                    "Please restart the application."
+                )
+            else:
+                error_output = process.readAllStandardError().data().decode()
+                QMessageBox.critical(
+                    None,
+                    "Setup Failed",
+                    f"Environment setup failed:\n\n{error_output}\n\n"
+                    f"Please check the console output and try manual setup."
+                )
+
+        elif clicked_button == manual_button:
+            # Show manual instructions
+            QMessageBox.information(
+                None,
+                "Manual Setup Instructions",
+                "To set up the environment manually:\n\n"
+                "1. Open a terminal/command prompt\n"
+                "2. Navigate to the project directory\n"
+                "3. Run: python run_app.py --setup-only\n"
+                "4. Follow the on-screen instructions\n\n"
+                "For detailed instructions, see ENVIRONMENT_SETUP.md"
+            )
+
+    except ImportError:
+        # Fallback to console output if PySide6 is not available
+        print(f"Environment Error: {error_message}")
+        print("\nTo set up the environment:")
+        print("1. Open a terminal/command prompt")
+        print("2. Navigate to the project directory")
+        print("3. Run: python run_app.py --setup-only")
+        print("4. Follow the on-screen instructions")
+
+
 def main():
-    """Main application entry point."""
+    """Main application entry point with environment validation."""
+    # Check environment before importing PySide6 components
+    env_ok, error_msg = check_environment()
+
+    if not env_ok:
+        show_environment_error(error_msg)
+        sys.exit(1)
+
+    # Environment is OK, proceed with normal startup
     app = QApplication(sys.argv)
 
     # Set application properties
@@ -2892,8 +3009,19 @@ def main():
     app.setOrganizationName("Moveworks")
 
     # Create and show main window
-    window = MainWindow()
-    window.show()
+    try:
+        window = MainWindow()
+        window.show()
+    except Exception as e:
+        # Handle any startup errors gracefully
+        from PySide6.QtWidgets import QMessageBox
+        QMessageBox.critical(
+            None,
+            "Startup Error",
+            f"Failed to initialize the application:\n\n{str(e)}\n\n"
+            f"Please check the console output for more details."
+        )
+        sys.exit(1)
 
     # Run the application
     sys.exit(app.exec())
