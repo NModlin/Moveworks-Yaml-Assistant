@@ -529,10 +529,16 @@ class ComprehensiveHelpDialog(QDialog):
             self.sections_tree.topLevelItem(0).setExpanded(True)
 
     def _show_welcome_content(self):
-        """Show welcome content."""
-        welcome_topic = help_system.get_topic("Application Overview")
-        if welcome_topic:
-            self.show_topic(welcome_topic)
+        """Show welcome content with enhanced features."""
+        # Try to show the enhanced compound action topic first
+        compound_action_topic = help_system.get_topic("Compound Action Name")
+        if compound_action_topic:
+            self.show_topic(compound_action_topic)
+        else:
+            # Fallback to application overview
+            welcome_topic = help_system.get_topic("Application Overview")
+            if welcome_topic:
+                self.show_topic(welcome_topic)
 
     def show_topic(self, topic: HelpTopic):
         """Display a specific help topic."""

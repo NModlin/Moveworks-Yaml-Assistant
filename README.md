@@ -1,13 +1,14 @@
 # Enhanced Moveworks YAML Assistant
 
-A comprehensive desktop application for creating and managing Moveworks Compound Action workflows with complete support for all expression types and advanced features.
+A comprehensive desktop application for creating and managing Moveworks Compound Action workflows with complete support for all expression types, strict Moveworks compliance, and advanced features.
 
 ## 🚀 Overview
 
-The Enhanced Moveworks YAML Assistant is the definitive solution for building complex Compound Action workflows. It provides complete support for all 8 Moveworks expression types, advanced data handling with `meta_info.user` support, intelligent validation with fix suggestions, and a comprehensive template library.
+The Enhanced Moveworks YAML Assistant is the definitive solution for building complex Compound Action workflows. It provides complete support for all 8 Moveworks expression types, strict Moveworks compound action compliance, advanced data handling with `meta_info.user` support, intelligent validation with fix suggestions, and a comprehensive template library.
 
 **Key Achievements:**
 - ✅ **100% Expression Coverage**: All 8 expression types fully implemented
+- ✅ **Strict Moveworks Compliance**: Mandatory compound action structure with action_name and steps
 - ✅ **Perfect YAML Compliance**: Matches `yaml_syntex.md` format exactly
 - ✅ **Enhanced Data Context**: Complete `data.*` and `meta_info.user` support
 - ✅ **Comprehensive Templates**: Ready-to-use templates for all expression types
@@ -39,11 +40,19 @@ The Enhanced Moveworks YAML Assistant is the definitive solution for building co
 
 ## 🔧 Advanced Features
 
+### Strict Moveworks Compound Action Compliance
+- **Mandatory Structure**: All YAML follows required compound action format
+- **Action Name Field**: Top-level `action_name` field for workflow identification
+- **Steps Array**: All workflow steps wrapped in mandatory `steps` array
+- **Data Type Enforcement**: Automatic validation of field types (dict, int, string)
+- **Real-time Validation**: Immediate feedback on Moveworks compliance
+
 ### Perfect YAML Generation
-- **Compliance**: 100% compliant with `yaml_syntex.md` format
-- **Smart Formatting**: Single expressions without 'steps' wrapper, multiple with wrapper
+- **Compliance**: 100% compliant with `yaml_syntex.md` format and Moveworks requirements
+- **Compound Action Structure**: Mandatory top-level action_name and steps fields
 - **Proper Structure**: Correct field ordering, indentation, and nesting
 - **Complex Support**: Full support for nested steps in control flow expressions
+- **Type Safety**: Automatic data type enforcement for all fields
 
 ### Enhanced Data Context
 - **Complete Data References**: Full support for all `data.*` patterns
@@ -115,11 +124,12 @@ python main_gui.py
 ```
 
 **New Features Available:**
+- 🏷️ Compound action name input for Moveworks compliance
 - 🎯 All 8 expression types in the step creation menu
 - 📚 Template browser with comprehensive templates
 - 🔍 Enhanced JSON path selector with meta_info support
-- ✅ Intelligent validation with fix suggestions
-- 📖 Interactive tutorials and contextual examples
+- ✅ Intelligent validation with Moveworks compliance checks
+- 📖 Interactive tutorials including compound action guidance
 
 ### Testing & Demonstration
 
@@ -210,12 +220,18 @@ enhanced_moveworks_yaml_assistant/
 
 ## 🎯 Enhanced Workflow Creation Process
 
-### 1. Expression Type Selection
+### 1. Compound Action Naming
+- **Set Action Name**: Enter a descriptive name for your compound action (e.g., "user_onboarding_workflow")
+- **Moveworks Compliance**: Name becomes the top-level `action_name` field in YAML
+- **Naming Conventions**: Use lowercase letters, underscores, no spaces or special characters
+- **Real-time Preview**: YAML updates automatically as you type
+
+### 2. Expression Type Selection
 - Choose from all 8 expression types: action, script, switch, for, parallel, return, raise, try_catch
 - Use templates for quick start with pre-configured examples
 - Access interactive tutorials for step-by-step guidance
 
-### 2. Enhanced Configuration
+### 3. Enhanced Configuration
 - **Action Steps**: Configure with delay_config and progress_updates
 - **Script Steps**: Write APIthon code with input_args support
 - **Control Flow**: Configure complex nested steps (switch cases, for loops, parallel branches)
@@ -235,22 +251,25 @@ enhanced_moveworks_yaml_assistant/
 
 ## 📋 Example Workflows
 
-### Simple Action Workflow
+### Simple Action Workflow (Moveworks Compliant)
 ```yaml
-action:
-  action_name: fetch_user_details
-  output_key: user_details
-  input_args:
-    user_id: data.user_id
-  delay_config:
-    seconds: "10"
-  progress_updates:
-    on_pending: "Fetching user details, please wait..."
-    on_complete: "User details fetched successfully."
+action_name: fetch_user_details_workflow
+steps:
+- action:
+    action_name: fetch_user_details
+    output_key: user_details
+    input_args:
+      user_id: data.user_id
+    delay_config:
+      delay_seconds: 10
+    progress_updates:
+      on_pending: "Fetching user details, please wait..."
+      on_complete: "User details fetched successfully."
 ```
 
-### Complex Control Flow Workflow
+### Complex Control Flow Workflow (Moveworks Compliant)
 ```yaml
+action_name: user_access_management_workflow
 steps:
 - action:
     action_name: mw.get_user_by_email
@@ -280,11 +299,12 @@ steps:
 ## 🏆 Implementation Status
 
 - ✅ **Enhanced Core Engine**: All 8 expression types with perfect YAML compliance
+- ✅ **Strict Moveworks Compliance**: Mandatory compound action structure with action_name and steps
 - ✅ **Advanced Data Context**: Complete data.* and meta_info.user support
 - ✅ **Comprehensive Templates**: Templates for all expression types
-- ✅ **Intelligent Validation**: Fix suggestions and automated corrections
-- ✅ **Interactive Tutorials**: Step-by-step guidance for all features
-- ✅ **Enhanced UI/UX**: Professional desktop application with advanced features
+- ✅ **Intelligent Validation**: Fix suggestions, automated corrections, and compliance checks
+- ✅ **Interactive Tutorials**: Step-by-step guidance including compound action naming
+- ✅ **Enhanced UI/UX**: Professional desktop application with Moveworks compliance features
 
 ## 🎓 Enhanced Learning & Support
 
@@ -334,10 +354,11 @@ This implementation extends the original **PySide6 Desktop Application** archite
 ## 🎉 Success Metrics
 
 - ✅ **100% Expression Coverage**: All 8 expression types fully implemented
-- ✅ **Perfect YAML Compliance**: Matches yaml_syntex.md format exactly
+- ✅ **Strict Moveworks Compliance**: Mandatory compound action structure enforced
+- ✅ **Perfect YAML Compliance**: Matches yaml_syntex.md format exactly with compound action requirements
 - ✅ **Enhanced Data Support**: Complete data.* and meta_info.user support
-- ✅ **Comprehensive Testing**: All features tested and validated
-- ✅ **User Experience**: Intuitive interface with advanced capabilities
-- ✅ **Documentation**: Complete documentation and examples
+- ✅ **Comprehensive Testing**: All features tested and validated including compliance checks
+- ✅ **User Experience**: Intuitive interface with Moveworks compliance guidance
+- ✅ **Documentation**: Complete documentation with compound action examples
 
-**The Enhanced Moveworks YAML Assistant is now the definitive solution for creating Compound Action workflows!** 🚀
+**The Enhanced Moveworks YAML Assistant is now the definitive solution for creating Moveworks-compliant Compound Action workflows!** 🚀

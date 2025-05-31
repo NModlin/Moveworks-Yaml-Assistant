@@ -214,12 +214,14 @@ The Enhanced Moveworks YAML Assistant uses a three-panel layout designed for eff
 **Purpose**: Create and manage your workflow steps
 
 **Components**:
+- **Compound Action Name**: Input field for naming your compound action (required for Moveworks compliance)
 - **Add Step Buttons**: Create new action, script, or control flow steps
 - **Step List**: Shows all steps in your workflow
 - **Step Controls**: Move, copy, delete, and reorder steps
 - **Workflow Actions**: Save, load, and export workflows
 
 **Key Features**:
+- Compound action naming for Moveworks compliance
 - Drag-and-drop step reordering
 - Visual step type indicators
 - Quick step duplication
@@ -352,6 +354,101 @@ The interface is designed to support both beginners and experts. Start with the 
             prerequisites=["Application Overview"]
         ))
 
+        # Compound Action Name
+        self.add_topic(HelpTopic(
+            title="Compound Action Name",
+            content="""
+# Compound Action Name
+
+The Compound Action Name is a **mandatory field** that identifies your entire workflow in the Moveworks platform.
+
+## What is a Compound Action Name?
+
+A compound action name is the unique identifier for your complete workflow. It's different from individual step names:
+
+- **Compound Action Name**: Identifies the entire workflow (e.g., "user_onboarding_workflow")
+- **Step Action Names**: Identify individual actions within steps (e.g., "mw.get_user_by_email")
+
+## Why is it Required?
+
+Moveworks requires all workflows to follow a specific YAML structure:
+
+```yaml
+action_name: your_compound_action_name  # ← This is the compound action name
+steps:                                  # ← Your workflow steps go here
+  - action:
+      action_name: mw.get_user_by_email # ← This is a step action name
+      output_key: user_info
+```
+
+## Naming Conventions
+
+### ✅ Good Names
+- `user_onboarding_workflow`
+- `ticket_escalation_process`
+- `employee_offboarding`
+- `service_request_handler`
+
+### ❌ Avoid These
+- Names with spaces: `user onboarding workflow`
+- Special characters: `user-onboarding@workflow`
+- Too generic: `workflow1`, `test`
+- Too long: `very_long_compound_action_name_that_is_hard_to_read`
+
+## Best Practices
+
+1. **Use descriptive names**: Clearly indicate what the workflow does
+2. **Use underscores**: Separate words with underscores, not spaces or hyphens
+3. **Keep it concise**: Aim for 2-4 words maximum
+4. **Be specific**: Avoid generic terms like "workflow" or "process" unless necessary
+5. **Use lowercase**: Follow standard naming conventions
+
+## How to Set the Name
+
+1. **Location**: Find the "Compound Action Name" field in the left panel
+2. **Default Value**: The field starts with "compound_action"
+3. **Change It**: Replace with your desired name
+4. **Real-time Update**: The YAML preview updates automatically
+
+## Impact on YAML Output
+
+The compound action name becomes the top-level `action_name` field in your generated YAML:
+
+```yaml
+action_name: my_workflow_name  # ← Your compound action name here
+steps:
+  - action:
+      action_name: mw.get_user_by_email
+      output_key: user_info
+  - script:
+      code: |
+        # Your script code here
+      output_key: processed_data
+```
+
+## Validation
+
+The system validates that:
+- ✅ The name is not empty
+- ✅ The name follows naming conventions
+- ✅ The name is included in all YAML exports
+
+**Remember**: This name identifies your entire workflow in the Moveworks platform, so choose it carefully!
+            """.strip(),
+            category="Getting Started",
+            subcategory="Essential Concepts",
+            difficulty="Beginner",
+            keywords=["compound", "action", "name", "workflow", "identifier", "yaml", "moveworks"],
+            estimated_time="3 minutes",
+            related_topics=["YAML Structure", "Moveworks Compliance", "Workflow Creation"],
+            examples=[
+                "user_onboarding_workflow",
+                "ticket_escalation_process",
+                "employee_offboarding",
+                "service_request_handler"
+            ]
+        ))
+
         # Action Steps
         self.add_topic(HelpTopic(
             title="Action Steps",
@@ -467,6 +564,145 @@ The system validates that all data references point to available data.
             related_topics=["JSON Output", "JSON Browser", "Data Context"]
         ))
 
+        # YAML Structure
+        self.add_topic(HelpTopic(
+            title="YAML Structure & Moveworks Compliance",
+            content="""
+# YAML Structure & Moveworks Compliance
+
+The Enhanced Moveworks YAML Assistant generates YAML that strictly follows Moveworks compound action requirements.
+
+## Mandatory Compound Action Structure
+
+All generated YAML follows this **required** structure:
+
+```yaml
+action_name: your_compound_action_name  # ← Mandatory top-level field
+steps:                                  # ← Mandatory steps array
+  - action:                            # ← Individual workflow steps
+      action_name: mw.get_user_by_email
+      output_key: user_info
+      input_args:
+        email: data.input_email
+  - script:
+      code: |
+        # Your APIthon script here
+        result = {"processed": True}
+        return result
+      output_key: processed_data
+```
+
+## Key Requirements
+
+### 1. Top-Level Fields (Mandatory)
+- **`action_name`**: String identifying the compound action
+- **`steps`**: Array containing all workflow steps
+
+### 2. Data Type Enforcement
+- **`input_args`**: Must be a dictionary/object
+- **`delay_config.delay_seconds`**: Must be an integer
+- **`progress_updates`**: Must be a dictionary/object
+- **`on_status_code`**: Must be integer or array of integers
+
+### 3. Step Wrapping
+- **All steps** are wrapped in the `steps` array for consistency
+- **Single step workflows** still use the array format
+- **Multiple step workflows** maintain the same structure
+
+## Differences from Basic YAML
+
+### ❌ Old Format (Non-Compliant)
+```yaml
+# This format is NOT Moveworks compliant
+action:
+  action_name: mw.get_user_by_email
+  output_key: user_info
+```
+
+### ✅ New Format (Moveworks Compliant)
+```yaml
+# This format IS Moveworks compliant
+action_name: my_workflow_name
+steps:
+  - action:
+      action_name: mw.get_user_by_email
+      output_key: user_info
+```
+
+## Enhanced Features
+
+### 1. Automatic Type Validation
+The system automatically ensures:
+- Dictionary fields are properly formatted
+- Integer fields contain valid numbers
+- String fields are properly quoted
+- Arrays are correctly structured
+
+### 2. Literal Block Scalars for Scripts
+APIthon scripts use proper YAML literal block format:
+
+```yaml
+script:
+  code: |
+    # Multi-line script with proper formatting
+    user_name = data.user_info.name
+    result = {
+        "greeting": f"Hello, {user_name}!",
+        "processed": True
+    }
+    return result
+  output_key: processed_data
+```
+
+### 3. Consistent Field Ordering
+Fields are ordered for optimal readability:
+1. `action_name` or `code` (primary identifier)
+2. `output_key` (result destination)
+3. `input_args` (input parameters)
+4. `description` (documentation)
+5. Additional configuration fields
+
+## Validation Benefits
+
+The enhanced YAML generation provides:
+
+- **✅ Guaranteed Compliance**: All output follows Moveworks requirements
+- **✅ Type Safety**: Automatic data type enforcement
+- **✅ Structure Validation**: Proper nesting and field organization
+- **✅ Format Consistency**: Standardized output across all workflows
+
+## Export Process
+
+When you export YAML:
+
+1. **Compound Action Name**: Taken from the left panel input field
+2. **Steps Array**: Generated from your workflow steps
+3. **Type Enforcement**: All fields validated and properly typed
+4. **Format Compliance**: Structure verified against Moveworks requirements
+
+## Best Practices
+
+1. **Always Set Action Name**: Use the compound action name field
+2. **Validate Before Export**: Check for compliance issues
+3. **Review Generated YAML**: Verify the structure meets your needs
+4. **Test with Moveworks**: Validate the YAML works in your environment
+
+The enhanced YAML generation ensures your workflows are always Moveworks-compliant and ready for production use.
+            """.strip(),
+            category="Getting Started",
+            subcategory="Essential Concepts",
+            difficulty="Intermediate",
+            keywords=["yaml", "structure", "compliance", "moveworks", "format", "mandatory"],
+            estimated_time="5 minutes",
+            related_topics=["Compound Action Name", "YAML Export", "Validation"],
+            examples=[
+                "action_name: user_lookup_workflow",
+                "steps: [...]",
+                "input_args: {email: data.input_email}",
+                "delay_config: {delay_seconds: 5}"
+            ]
+        ))
+
         # Validation
         self.add_topic(HelpTopic(
             title="Validation",
@@ -480,6 +716,7 @@ Validation checks:
 - JSON outputs are valid
 - Script syntax is correct
 - Action names follow proper format
+- Compound action structure compliance
 
 Validation levels:
 - Real-time: Basic checks as you type
@@ -1205,6 +1442,7 @@ The Enhanced JSON Path Selector makes data selection intuitive and error-free, e
 
 # Enhanced tooltip content for UI elements
 TOOLTIPS = {
+    "compound_action_name": "Unique identifier for your entire workflow (required for Moveworks compliance). Use descriptive names like 'user_onboarding_workflow' or 'ticket_escalation_process'. This becomes the top-level 'action_name' field in your YAML.",
     "action_name": "The name of the action to execute (e.g., 'mw.get_user_by_email')",
     "output_key": "Unique identifier for storing this step's output (used in data.output_key references)",
     "description": "Optional human-readable description of what this step does",
@@ -1216,16 +1454,16 @@ TOOLTIPS = {
     "add_script": "Add a new script step that executes APIthon code",
     "add_builtin": "Add a pre-configured Moveworks built-in action with example output",
     "json_browser": "Browse JSON structure from previous steps to select data paths",
-    "yaml_preview": "Live preview of the generated YAML with validation status",
-    "validation_status": "Shows validation results - hover for error details",
+    "yaml_preview": "Live preview of the generated YAML with Moveworks compliance validation",
+    "validation_status": "Shows validation results including Moveworks compliance - hover for error details",
     "step_list": "List of workflow steps - click to select and configure",
     "move_up": "Move the selected step up in the execution order",
     "move_down": "Move the selected step down in the execution order",
     "remove_step": "Remove the selected step from the workflow",
     "save_workflow": "Save the current workflow to a JSON file",
     "load_workflow": "Load a workflow from a JSON file",
-    "export_yaml": "Export the workflow as a YAML file for use in Moveworks",
-    "validate": "Run comprehensive validation on the current workflow"
+    "export_yaml": "Export the workflow as Moveworks-compliant YAML with compound action structure",
+    "validate": "Run comprehensive validation including Moveworks compliance checks"
 }
 
 
@@ -1237,13 +1475,16 @@ def get_tooltip(element_id: str) -> str:
 def get_contextual_help(context: str) -> str:
     """Get contextual help based on current application state."""
     help_texts = {
-        "empty_workflow": "Start by adding your first step using the buttons on the left.",
+        "empty_workflow": "Start by setting a compound action name, then add your first step using the buttons on the left.",
         "no_step_selected": "Select a step from the list to configure its properties.",
         "action_step_selected": "Configure the action name, output key, and input arguments. Don't forget to provide JSON output!",
         "script_step_selected": "Write your APIthon code and specify the output key. Include a 'return' statement.",
         "validation_errors": "Fix the validation errors shown in red before exporting your workflow.",
         "no_json_output": "Provide JSON output examples to enable variable mapping between steps.",
-        "ready_to_export": "Your workflow is valid and ready to export as YAML!"
+        "ready_to_export": "Your workflow is valid and ready to export as Moveworks-compliant YAML!",
+        "compound_action_name_empty": "Set a compound action name to identify your workflow. Use descriptive names like 'user_lookup_workflow'.",
+        "compound_action_name_invalid": "Use valid naming conventions: lowercase letters, underscores, no spaces or special characters.",
+        "moveworks_compliance": "Your YAML follows Moveworks compound action requirements with mandatory action_name and steps fields."
     }
 
     return help_texts.get(context, "")
