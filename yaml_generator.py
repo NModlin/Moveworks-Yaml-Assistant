@@ -44,7 +44,9 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
             action_dict['input_args'] = step.input_args
 
         if step.delay_config:
-            action_dict['delay_config'] = step.delay_config
+            # Ensure delay_config has proper structure
+            delay_config = step.delay_config.copy() if isinstance(step.delay_config, dict) else step.delay_config
+            action_dict['delay_config'] = delay_config
 
         if step.progress_updates:
             action_dict['progress_updates'] = step.progress_updates
@@ -178,9 +180,23 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
         if step.catch_block:
             catch_dict = {}
 
-            # Add on_status_code if present
+            # Add on_status_code if present (ensure proper format)
             if step.catch_block.on_status_code:
-                catch_dict['on_status_code'] = step.catch_block.on_status_code
+                if isinstance(step.catch_block.on_status_code, list):
+                    # Convert string numbers to integers if needed
+                    status_codes = []
+                    for code in step.catch_block.on_status_code:
+                        try:
+                            status_codes.append(int(code))
+                        except (ValueError, TypeError):
+                            status_codes.append(code)  # Keep original if conversion fails
+                    catch_dict['on_status_code'] = status_codes
+                else:
+                    # Single status code
+                    try:
+                        catch_dict['on_status_code'] = int(step.catch_block.on_status_code)
+                    except (ValueError, TypeError):
+                        catch_dict['on_status_code'] = step.catch_block.on_status_code
 
             catch_dict['steps'] = [step_to_yaml_dict(nested_step) for nested_step in step.catch_block.steps]
 

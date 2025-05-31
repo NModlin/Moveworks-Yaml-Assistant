@@ -40,6 +40,24 @@ def validate_step(step, existing_output_keys: Set[str]) -> List[str]:
         if step.action_name and not step.action_name.strip():
             errors.append("ActionStep 'action_name' cannot be empty or whitespace")
 
+        # Validate input_args data type
+        if step.input_args is not None and not isinstance(step.input_args, dict):
+            errors.append("ActionStep 'input_args' must be a dictionary")
+
+        # Validate delay_config structure
+        if step.delay_config is not None:
+            if not isinstance(step.delay_config, dict):
+                errors.append("ActionStep 'delay_config' must be a dictionary")
+            elif 'delay_seconds' in step.delay_config:
+                try:
+                    int(step.delay_config['delay_seconds'])
+                except (ValueError, TypeError):
+                    errors.append("ActionStep 'delay_config.delay_seconds' must be an integer")
+
+        # Validate progress_updates structure
+        if step.progress_updates is not None and not isinstance(step.progress_updates, dict):
+            errors.append("ActionStep 'progress_updates' must be a dictionary")
+
     elif isinstance(step, ScriptStep):
         # Check required fields for ScriptStep
         if not step.code:
@@ -51,6 +69,10 @@ def validate_step(step, existing_output_keys: Set[str]) -> List[str]:
         # Check for valid code (basic check)
         if step.code and not step.code.strip():
             errors.append("ScriptStep 'code' cannot be empty or whitespace")
+
+        # Validate input_args data type
+        if step.input_args is not None and not isinstance(step.input_args, dict):
+            errors.append("ScriptStep 'input_args' must be a dictionary")
 
     elif isinstance(step, SwitchStep):
         # Check required fields for SwitchStep
@@ -119,6 +141,21 @@ def validate_step(step, existing_output_keys: Set[str]) -> List[str]:
         if step.catch_block:
             if not step.catch_block.steps:
                 errors.append("TryCatchStep catch block must have at least one step")
+
+            # Validate on_status_code field
+            if step.catch_block.on_status_code is not None:
+                if isinstance(step.catch_block.on_status_code, list):
+                    for code in step.catch_block.on_status_code:
+                        try:
+                            int(code)
+                        except (ValueError, TypeError):
+                            errors.append("TryCatchStep catch block on_status_code must contain integers")
+                            break
+                else:
+                    try:
+                        int(step.catch_block.on_status_code)
+                    except (ValueError, TypeError):
+                        errors.append("TryCatchStep catch block on_status_code must be an integer or list of integers")
 
             # Validate catch steps
             for nested_step in step.catch_block.steps:
@@ -257,6 +294,10 @@ def validate_data_references(workflow: Workflow, initial_data_context: DataConte
             # Extract the data path (remove 'data.' prefix)
             data_path = value[5:]  # Remove 'data.'
 
+            # Skip validation for condition expressions (they contain operators)
+            if any(op in value for op in ['==', '!=', '>', '<', '>=', '<=', 'and', 'or', 'not']):
+                return  # Skip validation for conditional expressions
+
             if not running_context.is_path_available(data_path):
                 errors.append(
                     f"Step {step_num}: {context_description} references "
@@ -268,14 +309,28 @@ def validate_data_references(workflow: Workflow, initial_data_context: DataConte
 
         # Check input_args for data references
         if hasattr(step, 'input_args') and step.input_args:
-            for arg_name, arg_value in step.input_args.items():
-                validate_data_reference(arg_value, f"input_args['{arg_name}']", step_num)
+            # Only validate if input_args is a dictionary
+            if isinstance(step.input_args, dict):
+                for arg_name, arg_value in step.input_args.items():
+                    validate_data_reference(arg_value, f"input_args['{arg_name}']", step_num)
 
         # Check specific step type fields
         if isinstance(step, SwitchStep):
-            # Validate conditions in switch cases
+            # Validate conditions in switch cases - extract data references from conditions
             for i, case in enumerate(step.cases):
-                validate_data_reference(case.condition, f"switch case {i+1} condition", step_num)
+                # For switch conditions, we need to extract data references more carefully
+                condition = case.condition
+                if condition and 'data.' in condition:
+                    # Extract data references from condition expressions
+                    import re
+                    data_refs = re.findall(r'data\.[\w.]+', condition)
+                    for data_ref in data_refs:
+                        data_path = data_ref[5:]  # Remove 'data.' prefix
+                        if not running_context.is_path_available(data_path):
+                            errors.append(
+                                f"Step {step_num}: switch case {i+1} condition references "
+                                f"unavailable data path '{data_ref}'"
+                            )
                 # Recursively validate nested steps
                 for nested_step in case.steps:
                     validate_step_data_references(nested_step, step_num)
@@ -300,8 +355,9 @@ def validate_data_references(workflow: Workflow, initial_data_context: DataConte
 
         elif isinstance(step, ReturnStep):
             # Validate output_mapper values
-            for key, value in step.output_mapper.items():
-                validate_data_reference(value, f"return output_mapper['{key}']", step_num)
+            if isinstance(step.output_mapper, dict):
+                for key, value in step.output_mapper.items():
+                    validate_data_reference(value, f"return output_mapper['{key}']", step_num)
 
         elif isinstance(step, TryCatchStep):
             # Validate try steps
@@ -398,18 +454,21 @@ def validate_output_key_format(workflow: Workflow) -> List[str]:
         step_num = i + 1
 
         if hasattr(step, 'output_key') and step.output_key and step.output_key != '_':
-            # Check for valid identifier format
-            if not step.output_key.replace('_', '').replace('-', '').isalnum():
-                errors.append(f"Step {step_num}: Output key '{step.output_key}' contains invalid characters")
+            # Check for valid identifier format (alphanumeric, underscore, hyphen only)
+            import re
+            if not re.match(r'^[a-zA-Z][a-zA-Z0-9_-]*$', step.output_key):
+                errors.append(f"Step {step_num}: Output key '{step.output_key}' must start with a letter and contain only letters, numbers, underscores, and hyphens")
 
             # Check for reserved words
-            reserved_words = ['data', 'input', 'output', 'error', 'requestor', 'mw']
+            reserved_words = ['data', 'input', 'output', 'error', 'requestor', 'mw', 'meta_info', 'user']
             if step.output_key.lower() in reserved_words:
                 errors.append(f"Step {step_num}: Output key '{step.output_key}' is a reserved word")
 
-            # Check for starting with number
-            if step.output_key[0].isdigit():
-                errors.append(f"Step {step_num}: Output key '{step.output_key}' cannot start with a number")
+            # Check length constraints
+            if len(step.output_key) > 50:
+                errors.append(f"Step {step_num}: Output key '{step.output_key}' is too long (max 50 characters)")
+            elif len(step.output_key) < 2:
+                errors.append(f"Step {step_num}: Output key '{step.output_key}' is too short (min 2 characters)")
 
     return errors
 
