@@ -92,8 +92,8 @@ class EnhancedAPIthonValidator:
             result.is_valid = False
             return result
 
-        # Core APIthon validation
-        result.errors.extend(validate_apiton_code_restrictions(step.code))
+        # Core APIthon validation with enhanced restrictions
+        result.errors.extend(self._enhanced_code_restrictions(step.code))
         result.errors.extend(validate_apiton_syntax(step.code))
         result.errors.extend(validate_apiton_data_references(step.code, available_data_paths))
 
@@ -106,6 +106,43 @@ class EnhancedAPIthonValidator:
         result.is_valid = len(result.errors) == 0
 
         return result
+
+    def _enhanced_code_restrictions(self, code: str) -> List[str]:
+        """
+        Enhanced APIthon code restrictions with stricter import and class detection.
+
+        Args:
+            code: The APIthon script code to validate
+
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+
+        # Start with basic restrictions
+        errors.extend(validate_apiton_code_restrictions(code))
+
+        # Enhanced import statement detection
+        enhanced_import_patterns = [
+            (r'\bfrom\s+\w+(\.\w+)*\s+import\s+\w+', "Enhanced: 'from ... import' statements are not allowed in APIthon"),
+            (r'\bfrom\s+\w+(\.\w+)*\s+import\s+\*', "Enhanced: 'from ... import *' statements are not allowed in APIthon"),
+            (r'\bimport\s+\w+(\.\w+)*(\s+as\s+\w+)?', "Enhanced: Import statements with aliases are not allowed in APIthon"),
+            (r'__import__\s*\(\s*["\'][\w\.]+["\']\s*\)', "Enhanced: Dynamic imports with __import__ are not allowed in APIthon"),
+        ]
+
+        # Enhanced class definition detection
+        enhanced_class_patterns = [
+            (r'^\s*class\s+\w+\s*\(.*\)\s*:', "Enhanced: Class definitions with inheritance are not allowed in APIthon"),
+            (r'^\s*class\s+\w+\s*:', "Enhanced: Class definitions are not allowed in APIthon"),
+            (r'^\s*class\s+\w+\s*\(\s*\)\s*:', "Enhanced: Empty class definitions are not allowed in APIthon"),
+        ]
+
+        # Check enhanced patterns
+        for pattern, error_message in enhanced_import_patterns + enhanced_class_patterns:
+            if re.search(pattern, code, re.MULTILINE):
+                errors.append(error_message)
+
+        return errors
 
     def _validate_resource_constraints(self, code: str, result: APIthonValidationResult):
         """Validate APIthon resource constraints."""

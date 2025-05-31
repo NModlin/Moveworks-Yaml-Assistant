@@ -38,6 +38,7 @@ from enhanced_validator import enhanced_validator, ValidationError
 from enhanced_script_editor import EnhancedScriptEditor
 from enhanced_apiton_validator import enhanced_apiton_validator, APIthonValidationResult
 from error_display import APIthonValidationWidget
+from compliance_validator import compliance_validator, ComplianceValidationResult
 
 
 class WorkflowListWidget(QListWidget):
@@ -162,9 +163,14 @@ class StepConfigurationPanel(QStackedWidget):
 
         self.action_name_edit = QLineEdit()
         self.action_name_edit.textChanged.connect(self._on_action_data_changed)
+        self.action_name_edit.textChanged.connect(self._validate_current_step)
         self.action_name_edit.setToolTip(get_tooltip("action_name"))
         self.action_name_edit.setPlaceholderText("e.g., mw.get_user_by_email")
-        form_layout.addRow("Action Name:", self.action_name_edit)
+
+        # Create label with mandatory field indicator
+        action_name_label = QLabel("Action Name: *")
+        action_name_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
+        form_layout.addRow(action_name_label, self.action_name_edit)
 
         self.action_description_edit = QLineEdit()
         self.action_description_edit.textChanged.connect(self._on_action_data_changed)
@@ -174,9 +180,14 @@ class StepConfigurationPanel(QStackedWidget):
 
         self.action_output_key_edit = QLineEdit()
         self.action_output_key_edit.textChanged.connect(self._on_action_data_changed)
+        self.action_output_key_edit.textChanged.connect(self._validate_current_step)
         self.action_output_key_edit.setToolTip(get_tooltip("output_key"))
         self.action_output_key_edit.setPlaceholderText("e.g., user_info")
-        form_layout.addRow("Output Key:", self.action_output_key_edit)
+
+        # Create label with mandatory field indicator
+        output_key_label = QLabel("Output Key: *")
+        output_key_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
+        form_layout.addRow(output_key_label, self.action_output_key_edit)
 
         layout.addWidget(form_group)
 
@@ -302,9 +313,14 @@ class StepConfigurationPanel(QStackedWidget):
 
         self.script_output_key_edit = QLineEdit()
         self.script_output_key_edit.textChanged.connect(self._on_script_data_changed)
+        self.script_output_key_edit.textChanged.connect(self._validate_current_step)
         self.script_output_key_edit.setToolTip(get_tooltip("output_key"))
         self.script_output_key_edit.setPlaceholderText("e.g., processed_data")
-        form_layout.addRow("Output Key:", self.script_output_key_edit)
+
+        # Create label with mandatory field indicator
+        script_output_key_label = QLabel("Output Key: *")
+        script_output_key_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
+        form_layout.addRow(script_output_key_label, self.script_output_key_edit)
 
         layout.addWidget(form_group)
 
@@ -443,6 +459,63 @@ class StepConfigurationPanel(QStackedWidget):
                 self.current_step.input_args[key_item.text()] = value_item.text()
 
         self.step_updated.emit()
+
+    def _validate_current_step(self):
+        """Validate the current step and provide real-time feedback."""
+        if not self.current_step:
+            return
+
+        # Create a temporary workflow with just the current step for validation
+        temp_workflow = Workflow(steps=[self.current_step])
+
+        # Perform compliance validation
+        result = compliance_validator.validate_workflow_compliance(temp_workflow)
+
+        # Update UI based on validation results
+        self._update_validation_ui(result)
+
+    def _update_validation_ui(self, result: ComplianceValidationResult):
+        """Update UI elements based on validation results."""
+        # Update field styling based on validation
+        if isinstance(self.current_step, ActionStep):
+            self._update_action_field_validation(result)
+        elif isinstance(self.current_step, ScriptStep):
+            self._update_script_field_validation(result)
+
+    def _update_action_field_validation(self, result: ComplianceValidationResult):
+        """Update action step field validation styling."""
+        # Reset styling
+        self.action_name_edit.setStyleSheet("")
+        self.action_output_key_edit.setStyleSheet("")
+
+        # Check for field naming errors
+        for error in result.field_naming_errors:
+            if "action_name" in error.lower():
+                self.action_name_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+            elif "output_key" in error.lower():
+                self.action_output_key_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+
+        # Check for mandatory field errors
+        for error in result.mandatory_field_errors:
+            if "action_name" in error.lower():
+                self.action_name_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+            elif "output_key" in error.lower():
+                self.action_output_key_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+
+    def _update_script_field_validation(self, result: ComplianceValidationResult):
+        """Update script step field validation styling."""
+        # Reset styling
+        self.script_output_key_edit.setStyleSheet("")
+
+        # Check for field naming errors
+        for error in result.field_naming_errors:
+            if "output_key" in error.lower():
+                self.script_output_key_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+
+        # Check for mandatory field errors
+        for error in result.mandatory_field_errors:
+            if "output_key" in error.lower():
+                self.script_output_key_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
 
     def _on_script_validation_updated(self, result: APIthonValidationResult):
         """Handle script validation updates from the enhanced editor."""
@@ -768,8 +841,22 @@ class YamlPreviewPanel(QWidget):
             yaml_content = generate_yaml_string(self.workflow, action_name_value)
             self.yaml_text.setPlainText(yaml_content)
 
-            # Validate workflow
+            # Validate workflow with enhanced compliance checking
+            from compliance_validator import compliance_validator
+
+            # Basic validation
             errors = comprehensive_validate(self.workflow)
+
+            # Enhanced compliance validation
+            compliance_result = compliance_validator.validate_workflow_compliance(
+                self.workflow, action_name_value
+            )
+
+            # Combine all validation errors
+            if not compliance_result.is_valid:
+                errors.extend(compliance_result.mandatory_field_errors)
+                errors.extend(compliance_result.field_naming_errors)
+                errors.extend(compliance_result.apiton_errors)
 
             if errors:
                 self.validation_status.set_error_count(len(errors))
@@ -1626,11 +1713,186 @@ class MainWindow(QMainWindow):
         self.validation_status = StatusIndicator()
         layout.addWidget(self.validation_status)
 
-        # Error display
+        # Create tabbed validation interface
+        validation_tabs = QTabWidget()
+        validation_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #bdc3c7;
+                border-radius: 4px;
+                background-color: #ffffff;
+                padding: 4px;
+            }
+            QTabBar::tab {
+                background-color: #ecf0f1;
+                color: #2c3e50;
+                border: 1px solid #bdc3c7;
+                padding: 6px 12px;
+                margin-right: 1px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-size: 11px;
+                font-weight: 600;
+            }
+            QTabBar::tab:selected {
+                background-color: #3498db;
+                color: #ffffff;
+                border-bottom-color: #3498db;
+            }
+            QTabBar::tab:hover {
+                background-color: #d5dbdb;
+                color: #2c3e50;
+            }
+        """)
+
+        # General validation tab
+        general_validation_widget = QWidget()
+        general_validation_layout = QVBoxLayout(general_validation_widget)
+        general_validation_layout.setContentsMargins(4, 4, 4, 4)
+
         self.error_display = ErrorListWidget()
-        layout.addWidget(self.error_display)
+        general_validation_layout.addWidget(self.error_display)
+
+        validation_tabs.addTab(general_validation_widget, "🔍 General")
+
+        # Compliance validation tab
+        compliance_validation_widget = QWidget()
+        compliance_validation_layout = QVBoxLayout(compliance_validation_widget)
+        compliance_validation_layout.setContentsMargins(4, 4, 4, 4)
+
+        self.compliance_display = self._create_compliance_display()
+        compliance_validation_layout.addWidget(self.compliance_display)
+
+        validation_tabs.addTab(compliance_validation_widget, "📋 Compliance")
+
+        layout.addWidget(validation_tabs)
 
         return panel
+
+    def _create_compliance_display(self):
+        """Create the compliance validation display widget."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        # Compliance status header
+        self.compliance_status_label = QLabel("✓ Compliance Status: Ready")
+        self.compliance_status_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #4caf50;
+                padding: 8px;
+                background-color: #e8f5e8;
+                border-radius: 4px;
+                border: 1px solid #4caf50;
+            }
+        """)
+        layout.addWidget(self.compliance_status_label)
+
+        # Compliance sections
+        sections_scroll = QScrollArea()
+        sections_scroll.setWidgetResizable(True)
+        sections_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        sections_widget = QWidget()
+        sections_layout = QVBoxLayout(sections_widget)
+
+        # Field Naming section
+        field_naming_group = QGroupBox("Field Naming Compliance")
+        field_naming_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #2c3e50;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        field_naming_layout = QVBoxLayout(field_naming_group)
+
+        self.field_naming_status = QLabel("✓ All field names follow lowercase_snake_case")
+        self.field_naming_status.setStyleSheet("color: #4caf50; font-size: 12px;")
+        field_naming_layout.addWidget(self.field_naming_status)
+
+        self.field_naming_errors = QLabel("")
+        self.field_naming_errors.setWordWrap(True)
+        self.field_naming_errors.setStyleSheet("color: #f44336; font-size: 11px;")
+        field_naming_layout.addWidget(self.field_naming_errors)
+
+        sections_layout.addWidget(field_naming_group)
+
+        # Mandatory Fields section
+        mandatory_fields_group = QGroupBox("Mandatory Fields Compliance")
+        mandatory_fields_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #2c3e50;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        mandatory_fields_layout = QVBoxLayout(mandatory_fields_group)
+
+        self.mandatory_fields_status = QLabel("✓ All mandatory fields are present")
+        self.mandatory_fields_status.setStyleSheet("color: #4caf50; font-size: 12px;")
+        mandatory_fields_layout.addWidget(self.mandatory_fields_status)
+
+        self.mandatory_fields_errors = QLabel("")
+        self.mandatory_fields_errors.setWordWrap(True)
+        self.mandatory_fields_errors.setStyleSheet("color: #f44336; font-size: 11px;")
+        mandatory_fields_layout.addWidget(self.mandatory_fields_errors)
+
+        sections_layout.addWidget(mandatory_fields_group)
+
+        # APIthon Compliance section
+        apiton_compliance_group = QGroupBox("APIthon Script Compliance")
+        apiton_compliance_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #2c3e50;
+                border: 2px solid #bdc3c7;
+                border-radius: 4px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        apiton_compliance_layout = QVBoxLayout(apiton_compliance_group)
+
+        self.apiton_compliance_status = QLabel("✓ All scripts follow APIthon restrictions")
+        self.apiton_compliance_status.setStyleSheet("color: #4caf50; font-size: 12px;")
+        apiton_compliance_layout.addWidget(self.apiton_compliance_status)
+
+        self.apiton_compliance_errors = QLabel("")
+        self.apiton_compliance_errors.setWordWrap(True)
+        self.apiton_compliance_errors.setStyleSheet("color: #f44336; font-size: 11px;")
+        apiton_compliance_layout.addWidget(self.apiton_compliance_errors)
+
+        sections_layout.addWidget(apiton_compliance_group)
+
+        sections_layout.addStretch()
+        sections_scroll.setWidget(sections_widget)
+        layout.addWidget(sections_scroll)
+
+        return widget
 
     def _create_menu_bar(self):
         """Create the application menu bar."""
@@ -1994,6 +2256,81 @@ class MainWindow(QMainWindow):
         self.enhanced_json_panel.set_workflow(self.workflow_list.workflow)
         self.yaml_panel.set_workflow(self.workflow_list.workflow)
         self._update_validation()
+        self._update_compliance_validation()
+
+    def _update_compliance_validation(self):
+        """Update the compliance validation display."""
+        if not hasattr(self, 'compliance_display'):
+            return
+
+        # Get action name for compound action validation
+        action_name = getattr(self, 'action_name_edit', None)
+        action_name_value = action_name.text() if action_name else "compound_action"
+
+        # Perform compliance validation
+        result = compliance_validator.validate_workflow_compliance(
+            self.workflow_list.workflow,
+            action_name_value
+        )
+
+        # Update overall compliance status
+        if result.is_valid:
+            self.compliance_status_label.setText("✓ Compliance Status: All checks passed")
+            self.compliance_status_label.setStyleSheet("""
+                QLabel {
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: #4caf50;
+                    padding: 8px;
+                    background-color: #e8f5e8;
+                    border-radius: 4px;
+                    border: 1px solid #4caf50;
+                }
+            """)
+        else:
+            error_count = len(result.errors) + len(result.mandatory_field_errors) + len(result.field_naming_errors) + len(result.apiton_errors)
+            self.compliance_status_label.setText(f"❌ Compliance Status: {error_count} issue(s) found")
+            self.compliance_status_label.setStyleSheet("""
+                QLabel {
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: #f44336;
+                    padding: 8px;
+                    background-color: #ffebee;
+                    border-radius: 4px;
+                    border: 1px solid #f44336;
+                }
+            """)
+
+        # Update field naming compliance
+        if result.field_naming_errors:
+            self.field_naming_status.setText(f"❌ {len(result.field_naming_errors)} field naming issue(s)")
+            self.field_naming_status.setStyleSheet("color: #f44336; font-size: 12px; font-weight: bold;")
+            self.field_naming_errors.setText("\n".join(result.field_naming_errors))
+        else:
+            self.field_naming_status.setText("✓ All field names follow lowercase_snake_case")
+            self.field_naming_status.setStyleSheet("color: #4caf50; font-size: 12px;")
+            self.field_naming_errors.setText("")
+
+        # Update mandatory fields compliance
+        if result.mandatory_field_errors:
+            self.mandatory_fields_status.setText(f"❌ {len(result.mandatory_field_errors)} mandatory field issue(s)")
+            self.mandatory_fields_status.setStyleSheet("color: #f44336; font-size: 12px; font-weight: bold;")
+            self.mandatory_fields_errors.setText("\n".join(result.mandatory_field_errors))
+        else:
+            self.mandatory_fields_status.setText("✓ All mandatory fields are present")
+            self.mandatory_fields_status.setStyleSheet("color: #4caf50; font-size: 12px;")
+            self.mandatory_fields_errors.setText("")
+
+        # Update APIthon compliance
+        if result.apiton_errors:
+            self.apiton_compliance_status.setText(f"❌ {len(result.apiton_errors)} APIthon issue(s)")
+            self.apiton_compliance_status.setStyleSheet("color: #f44336; font-size: 12px; font-weight: bold;")
+            self.apiton_compliance_errors.setText("\n".join(result.apiton_errors))
+        else:
+            self.apiton_compliance_status.setText("✓ All scripts follow APIthon restrictions")
+            self.apiton_compliance_status.setStyleSheet("color: #4caf50; font-size: 12px;")
+            self.apiton_compliance_errors.setText("")
 
     def _validate_workflow(self):
         """Validate the current workflow and show results."""
@@ -2011,10 +2348,40 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Validation", f"❌ Found {len(errors)} validation error(s). Check the Validation tab for details.")
 
     def _export_yaml(self):
-        """Export the current workflow as YAML."""
+        """Export the current workflow as YAML with compliance validation."""
         if not self.workflow_list.workflow.steps:
             QMessageBox.warning(self, "Export YAML", "No workflow to export.")
             return
+
+        # Perform compliance validation before export
+        action_name_value = self.action_name_edit.text() if hasattr(self, 'action_name_edit') else "compound_action"
+        result = compliance_validator.validate_workflow_compliance(
+            self.workflow_list.workflow,
+            action_name_value
+        )
+
+        # Check if there are compliance issues
+        if not result.is_valid:
+            error_count = len(result.errors) + len(result.mandatory_field_errors) + len(result.field_naming_errors) + len(result.apiton_errors)
+            reply = QMessageBox.question(
+                self, "Compliance Issues Found",
+                f"Found {error_count} compliance issue(s) in the workflow:\n\n"
+                f"• Field naming errors: {len(result.field_naming_errors)}\n"
+                f"• Mandatory field errors: {len(result.mandatory_field_errors)}\n"
+                f"• APIthon errors: {len(result.apiton_errors)}\n"
+                f"• Other errors: {len(result.errors)}\n\n"
+                "Do you want to export anyway? The generated YAML may not be valid for Moveworks.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if reply == QMessageBox.No:
+                QMessageBox.information(
+                    self, "Export Cancelled",
+                    "Please fix the compliance issues and try again.\n"
+                    "Check the Validation → Compliance tab for details."
+                )
+                return
 
         from PySide6.QtWidgets import QFileDialog
         filename, _ = QFileDialog.getSaveFileName(
@@ -2023,11 +2390,14 @@ class MainWindow(QMainWindow):
 
         if filename:
             try:
-                action_name_value = self.action_name_edit.text() if hasattr(self, 'action_name_edit') else "compound_action"
                 yaml_content = generate_yaml_string(self.workflow_list.workflow, action_name_value)
                 with open(filename, 'w', encoding='utf-8') as f:
                     f.write(yaml_content)
-                QMessageBox.information(self, "Export Successful", f"YAML exported to:\n{filename}")
+
+                if result.is_valid:
+                    QMessageBox.information(self, "Export Successful", f"✅ YAML exported successfully to:\n{filename}\n\nAll compliance checks passed!")
+                else:
+                    QMessageBox.warning(self, "Export Completed with Issues", f"⚠️ YAML exported to:\n{filename}\n\nWarning: Compliance issues detected. Please review before using in production.")
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", f"Failed to export YAML:\n{str(e)}")
 
@@ -2226,29 +2596,10 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to save workflow: {str(e)}")
 
-    def _export_yaml(self):
-        """Export the generated YAML to file."""
-        from PySide6.QtWidgets import QFileDialog
-
-        if not self.workflow_list.workflow.steps:
-            QMessageBox.warning(self, "Warning", "No steps in workflow to export.")
-            return
-
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Export YAML", "", "YAML Files (*.yaml *.yml);;All Files (*)"
-        )
-
-        if filename:
-            try:
-                action_name_value = self.action_name_edit.text() if hasattr(self, 'action_name_edit') else "compound_action"
-                yaml_content = generate_yaml_string(self.workflow_list.workflow, action_name_value)
-                with open(filename, 'w') as f:
-                    f.write(yaml_content)
-
-                QMessageBox.information(self, "Success", f"YAML exported to {filename}")
-
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to export YAML: {str(e)}")
+    def _export_yaml_duplicate(self):
+        """Export the generated YAML to file (duplicate method - should be removed)."""
+        # This method appears to be a duplicate - redirecting to main export method
+        self._export_yaml()
 
     def _validate_workflow(self):
         """Validate the current workflow and show results with enhanced suggestions."""

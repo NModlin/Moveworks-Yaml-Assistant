@@ -2,18 +2,94 @@
 YAML generation module for Moveworks Compound Action workflows.
 
 This module converts internal workflow representations into syntactically correct
-YAML strings that comply with Moveworks Compound Action format.
+YAML strings that comply with Moveworks Compound Action format with enhanced
+compliance refinements for field naming standardization and DSL string formatting.
 
 Based on Sections 2.1, 8.1, and 11.1 of the Source of Truth Document.
 """
 
 import yaml
+import re
 from typing import Dict, Any, List
 from core_structures import (
     Workflow, ActionStep, ScriptStep, SwitchStep, ForLoopStep,
     ParallelStep, ReturnStep, SwitchCase, DefaultCase, ParallelBranch,
     RaiseStep, TryCatchStep, CatchBlock, ParallelForLoop
 )
+
+
+def _is_dsl_expression(value: str) -> bool:
+    """
+    Check if a string value contains Moveworks DSL expressions that need quoting.
+
+    Args:
+        value: String value to check
+
+    Returns:
+        True if the value contains DSL expressions, False otherwise
+    """
+    if not isinstance(value, str):
+        return False
+
+    # DSL patterns that need string quoting in YAML
+    dsl_patterns = [
+        r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # data.field_name
+        r'\bmeta_info\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # meta_info.user.email
+        r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*\[[0-9]+\]',  # data.array[0]
+        r'==|!=|>=|<=|>|<',  # Comparison operators in conditions
+        r'\$CONCAT\(',  # Moveworks functions
+        r'\$[A-Z_]+\(',  # Other Moveworks functions
+    ]
+
+    return any(re.search(pattern, value) for pattern in dsl_patterns)
+
+
+def _ensure_dsl_string_quoting(obj: Any) -> Any:
+    """
+    Recursively ensure DSL expressions are properly quoted as strings.
+
+    Args:
+        obj: Object to process (dict, list, or primitive)
+
+    Returns:
+        Processed object with DSL expressions as quoted strings
+    """
+    if isinstance(obj, dict):
+        return {key: _ensure_dsl_string_quoting(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_ensure_dsl_string_quoting(item) for item in obj]
+    elif isinstance(obj, str) and _is_dsl_expression(obj):
+        # Return as-is - YAML serializer will handle quoting
+        return obj
+    else:
+        return obj
+
+
+def _to_snake_case(name: str) -> str:
+    """
+    Convert a string to snake_case format for field naming standardization.
+
+    Args:
+        name: String to convert
+
+    Returns:
+        String in snake_case format
+    """
+    if not isinstance(name, str):
+        return str(name)
+
+    # Handle camelCase and PascalCase
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+
+    # Convert to lowercase and replace any remaining non-alphanumeric with underscore
+    result = re.sub(r'[^a-zA-Z0-9_]', '_', s2).lower()
+
+    # Remove multiple consecutive underscores
+    result = re.sub(r'_+', '_', result)
+
+    # Remove leading/trailing underscores
+    return result.strip('_')
 
 
 def step_to_yaml_dict(step) -> Dict[str, Any]:
@@ -39,13 +115,16 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
             'output_key': output_key
         }
 
-        # Add optional fields in the correct order with proper type enforcement
+        # Add optional fields in the correct order with proper type enforcement and DSL formatting
         if step.input_args:
             if isinstance(step.input_args, dict):
-                action_dict['input_args'] = step.input_args
+                # Apply DSL string formatting to input_args values
+                formatted_input_args = _ensure_dsl_string_quoting(step.input_args)
+                action_dict['input_args'] = formatted_input_args
             else:
-                # Convert to dict if not already
-                action_dict['input_args'] = dict(step.input_args) if step.input_args else {}
+                # Convert to dict if not already and apply DSL formatting
+                input_args_dict = dict(step.input_args) if step.input_args else {}
+                action_dict['input_args'] = _ensure_dsl_string_quoting(input_args_dict)
 
         if step.description:
             action_dict['description'] = str(step.description)
@@ -87,13 +166,16 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
         # Add output_key as required field
         script_dict['output_key'] = output_key
 
-        # Add input_args if present (optional field) - enforce dict type
+        # Add input_args if present (optional field) - enforce dict type with DSL formatting
         if step.input_args:
             if isinstance(step.input_args, dict):
-                script_dict['input_args'] = step.input_args
+                # Apply DSL string formatting to input_args values
+                formatted_input_args = _ensure_dsl_string_quoting(step.input_args)
+                script_dict['input_args'] = formatted_input_args
             else:
-                # Convert to dict if not already
-                script_dict['input_args'] = dict(step.input_args) if step.input_args else {}
+                # Convert to dict if not already and apply DSL formatting
+                input_args_dict = dict(step.input_args) if step.input_args else {}
+                script_dict['input_args'] = _ensure_dsl_string_quoting(input_args_dict)
 
         # Add description if present
         if step.description:
@@ -104,12 +186,17 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
     elif isinstance(step, SwitchStep):
         step_dict['switch'] = {}
 
-        # Add cases
+        # Add cases with DSL string formatting for conditions
         if step.cases:
             cases_list = []
             for case in step.cases:
+                # Apply DSL string formatting to condition if it contains DSL expressions
+                condition = case.condition
+                if isinstance(condition, str) and _is_dsl_expression(condition):
+                    condition = condition  # Keep as string for YAML quoting
+
                 case_dict = {
-                    'condition': case.condition,
+                    'condition': condition,
                     'steps': [step_to_yaml_dict(nested_step) for nested_step in case.steps]
                 }
                 cases_list.append(case_dict)
@@ -179,9 +266,11 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
         step_dict['parallel'] = parallel_dict
 
     elif isinstance(step, ReturnStep):
-        # Create return dict following yaml_syntex.md format
+        # Create return dict following yaml_syntex.md format with DSL string formatting
         if step.output_mapper:
-            step_dict['return'] = {'output_mapper': step.output_mapper}
+            # Apply DSL string formatting to output_mapper values
+            formatted_output_mapper = _ensure_dsl_string_quoting(step.output_mapper)
+            step_dict['return'] = {'output_mapper': formatted_output_mapper}
         else:
             step_dict['return'] = {}
 
@@ -282,13 +371,16 @@ def generate_yaml_string(workflow: Workflow, action_name: str = None) -> str:
     """
     workflow_dict = workflow_to_yaml_dict(workflow, action_name)
 
-    # Custom YAML representer for multiline strings to use literal block scalar (|)
+    # Custom YAML representer for multiline strings and DSL expressions
     def represent_literal_str(dumper, data):
         if '\n' in data:
             return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+        elif _is_dsl_expression(data):
+            # Force DSL expressions to be quoted
+            return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='"')
         return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
-    # Add custom representer for script code
+    # Add custom representer for script code and DSL expressions
     yaml.add_representer(str, represent_literal_str)
 
     try:
