@@ -16,7 +16,8 @@ from apiton_validator import (
     validate_apiton_code_restrictions,
     validate_apiton_syntax,
     validate_script_step_structure,
-    validate_apiton_data_references
+    validate_apiton_data_references,
+    detect_import_statements_comprehensive
 )
 
 
@@ -85,6 +86,7 @@ class APIthonValidationResult:
     citation_compliance: Dict[str, Any]
     private_member_violations: List[Dict[str, Any]]
     code_length_analysis: Dict[str, Any]
+    import_violations: List[Dict[str, str]]
 
     def __post_init__(self):
         if self.errors is None:
@@ -103,6 +105,8 @@ class APIthonValidationResult:
             self.private_member_violations = []
         if self.code_length_analysis is None:
             self.code_length_analysis = {}
+        if self.import_violations is None:
+            self.import_violations = []
 
     def add_error(self, message: str, line_number: Optional[int] = None,
                   error_type: str = "general", remediation: Optional[str] = None,
@@ -197,7 +201,8 @@ class EnhancedAPIthonValidator:
             return_analysis={},
             citation_compliance={},
             private_member_violations=[],
-            code_length_analysis={}
+            code_length_analysis={},
+            import_violations=[]
         )
 
         # Basic structural validation
@@ -214,11 +219,17 @@ class EnhancedAPIthonValidator:
             )
             return result
 
+        # Comprehensive import statement detection
+        self._detect_comprehensive_imports(step.code, result)
+
         # Enhanced private member detection
         self._detect_private_members(step.code, result)
 
         # Enhanced code length validation
         self._validate_enhanced_code_length(step.code, result)
+
+        # Resource limit validation
+        self._validate_resource_limits(step.code, result)
 
         # Large literal detection (optional warnings)
         self._detect_large_literals(step.code, result)
@@ -245,6 +256,61 @@ class EnhancedAPIthonValidator:
         result.is_valid = len(result.errors) == 0
 
         return result
+
+    def _detect_comprehensive_imports(self, code: str, result: APIthonValidationResult):
+        """
+        Comprehensive import statement detection with detailed analysis and educational feedback.
+
+        Uses the enhanced import detection from apiton_validator to provide detailed
+        import violation information with specific remediation suggestions.
+        """
+        import_violations = detect_import_statements_comprehensive(code)
+        result.import_violations = import_violations
+
+        # Convert import violations to validation errors with enhanced messaging
+        for violation in import_violations:
+            result.add_error(
+                violation['error_message'],
+                line_number=violation.get('line_number'),
+                error_type="import_statement",
+                remediation=violation.get('remediation'),
+                educational_context=violation.get('educational_context'),
+                code_snippet=self._extract_code_snippet(code, violation.get('line_number', 1))
+            )
+
+            # Add specific suggestions based on import type
+            if violation['type'] in ['simple_import', 'ast_import']:
+                result.suggestions.append(f"Replace '{violation['matched_text']}' with built-in Python functions or data.* references")
+            elif violation['type'] in ['from_import', 'ast_from_import']:
+                result.suggestions.append(f"Remove '{violation['matched_text']}' and use built-in alternatives")
+            elif violation['type'] == 'wildcard_import':
+                result.suggestions.append(f"Remove '{violation['matched_text']}' and use specific built-in functions")
+            elif violation['type'] == 'dynamic_import':
+                result.suggestions.append(f"Remove '{violation['matched_text']}' and use direct data processing")
+
+    def _extract_code_snippet(self, code: str, line_number: int, context_lines: int = 2) -> str:
+        """
+        Extract a code snippet around the specified line number for error context.
+
+        Args:
+            code: The full code string
+            line_number: The line number to center the snippet around
+            context_lines: Number of lines before and after to include
+
+        Returns:
+            Formatted code snippet with line numbers
+        """
+        lines = code.split('\n')
+        start_line = max(0, line_number - context_lines - 1)
+        end_line = min(len(lines), line_number + context_lines)
+
+        snippet_lines = []
+        for i in range(start_line, end_line):
+            line_num = i + 1
+            prefix = ">>> " if line_num == line_number else "    "
+            snippet_lines.append(f"{prefix}{line_num:3}: {lines[i]}")
+
+        return '\n'.join(snippet_lines)
 
     def _detect_private_members(self, code: str, result: APIthonValidationResult):
         """
@@ -465,7 +531,12 @@ class EnhancedAPIthonValidator:
                 )
 
     def _analyze_return_value_logic(self, code: str, result: APIthonValidationResult):
-        """Enhanced return value logic analysis with intelligent parsing and guidance."""
+        """
+        Comprehensive return value logic analysis with intelligent parsing and educational guidance.
+
+        Analyzes the final statement in APIthon code to ensure proper return value handling,
+        providing specific warnings and remediation for common patterns that result in None.
+        """
         try:
             tree = ast.parse(code)
             statements = tree.body
@@ -482,71 +553,130 @@ class EnhancedAPIthonValidator:
             last_statement = statements[-1]
             last_line_num = getattr(last_statement, 'lineno', len(code.split('\n')))
 
+            # Enhanced return analysis tracking
             result.return_analysis['has_explicit_return'] = isinstance(last_statement, ast.Return)
             result.return_analysis['last_statement_type'] = type(last_statement).__name__
             result.return_analysis['statement_count'] = len(statements)
             result.return_analysis['last_line_number'] = last_line_num
+            result.return_analysis['is_single_statement'] = len(statements) == 1
+            result.return_analysis['returns_value'] = False  # Will be set to True for valid patterns
 
-            # Enhanced analysis for different statement types
+            # Comprehensive analysis for different statement types
             if isinstance(last_statement, ast.Assign):
-                # Last line is an assignment - likely mistake
-                if hasattr(last_statement, 'targets') and last_statement.targets:
-                    target = last_statement.targets[0]
-                    if isinstance(target, ast.Name):
-                        var_name = target.id
-                        result.add_warning(
-                            f"Last line assigns to variable '{var_name}' but doesn't return it",
-                            line_number=last_line_num,
-                            error_type="return_logic",
-                            remediation=f"Add 'return {var_name}' as the final line, or change to '{var_name}' (expression)",
-                            educational_context="APIthon uses the result of the final expression as the output_key value. Assignments don't return values."
-                        )
-                        result.suggestions.append(f"Add 'return {var_name}' as the final line")
-                        result.suggestions.append(f"Or change the last line to just '{var_name}' (without assignment)")
-                        result.suggestions.append("Example: Instead of 'result = data.value * 2', use 'data.value * 2' or 'return data.value * 2'")
+                # Last line is an assignment - this will result in None being assigned to output_key
+                self._analyze_assignment_as_last_line(last_statement, last_line_num, result, statements)
 
             elif isinstance(last_statement, ast.Expr):
-                # Check if it's a method call that returns None
-                if isinstance(last_statement.value, ast.Call):
-                    self._check_none_returning_calls(last_statement.value, result, last_line_num)
-                else:
-                    # Good - expression that will return a value
-                    result.return_analysis['returns_value'] = True
+                # Expression statement - analyze what type of expression
+                self._analyze_expression_as_last_line(last_statement, last_line_num, result, statements)
 
             elif isinstance(last_statement, ast.Return):
                 # Explicit return - good practice
-                result.return_analysis['returns_value'] = True
-                result.return_analysis['explicit_return'] = True
+                self._analyze_explicit_return(last_statement, last_line_num, result, statements)
 
-            elif isinstance(last_statement, (ast.If, ast.For, ast.While)):
-                # Control flow as last statement - might not return value
-                result.add_warning(
-                    f"Script ends with {type(last_statement).__name__} statement which may not return a value",
-                    line_number=last_line_num,
-                    error_type="return_logic",
-                    remediation="Add a return statement or expression after the control flow",
-                    educational_context="Control flow statements don't return values. Ensure your script ends with an expression or return statement."
-                )
+            elif isinstance(last_statement, (ast.If, ast.For, ast.While, ast.With, ast.Try)):
+                # Control flow as last statement - analyze potential return issues
+                self._analyze_control_flow_as_last_line(last_statement, last_line_num, result, statements)
 
-            # Check for missing return when script has multiple statements
-            if len(statements) > 1 and not isinstance(last_statement, (ast.Return, ast.Expr)):
-                result.add_warning(
-                    "Multi-statement script should end with a return statement or expression",
-                    line_number=last_line_num,
-                    error_type="return_logic",
-                    remediation="Add a return statement or ensure the last line is an expression",
-                    educational_context="The output_key will receive the result of the final expression. Statements like assignments don't produce output."
-                )
+            elif isinstance(last_statement, (ast.Pass, ast.Break, ast.Continue)):
+                # Statements that definitely don't return values
+                self._analyze_non_returning_statement(last_statement, last_line_num, result, statements)
 
-            # Provide educational examples based on script complexity
-            if len(statements) == 1:
-                result.suggestions.append("Single-statement example: 'data.user_info.name.upper()' returns the uppercase name")
             else:
-                result.suggestions.append("Multi-statement example: Process data in multiple lines, then 'return final_result' or just 'final_result'")
+                # Other statement types that might not return values
+                self._analyze_other_statement_types(last_statement, last_line_num, result, statements)
+
+            # Provide comprehensive educational guidance
+            self._provide_return_logic_guidance(result, statements)
 
         except SyntaxError:
             # Syntax errors are handled elsewhere
             pass
+
+    def _analyze_assignment_as_last_line(self, assignment: ast.Assign, line_number: int,
+                                       result: APIthonValidationResult, statements: list):
+        """
+        Analyze assignment statements as the last line - this is a common mistake.
+
+        Assignment statements don't return values, so the output_key will receive None.
+        """
+        if hasattr(assignment, 'targets') and assignment.targets:
+            target = assignment.targets[0]
+            if isinstance(target, ast.Name):
+                var_name = target.id
+
+                # Extract the assignment value for better context
+                assignment_value = self._extract_assignment_value_description(assignment.value)
+
+                # Create comprehensive warning message
+                warning_msg = f"Last line assigns to variable '{var_name}' but doesn't return it - this will result in None being assigned to output_key"
+
+                # Enhanced remediation with specific examples
+                remediation_options = [
+                    f"Option 1: Add 'return {var_name}' as the final line",
+                    f"Option 2: Change to '{var_name}' (expression without assignment)",
+                    f"Option 3: Use the assignment value directly: {assignment_value}"
+                ]
+
+                result.add_warning(
+                    warning_msg,
+                    line_number=line_number,
+                    error_type="return_logic",
+                    remediation="; ".join(remediation_options),
+                    educational_context="APIthon uses the result of the final expression as the output_key value. Assignment statements return None, not the assigned value."
+                )
+
+                # Add specific suggestions with before/after examples
+                result.suggestions.append(f"❌ Current: {var_name} = {assignment_value}")
+                result.suggestions.append(f"✅ Fix 1: {var_name} = {assignment_value}; return {var_name}")
+                result.suggestions.append(f"✅ Fix 2: {assignment_value}  # Direct expression")
+
+                # Add context-specific guidance
+                if len(statements) == 1:
+                    result.suggestions.append("💡 Single-line tip: For one-line scripts, use expressions directly without assignment")
+                else:
+                    result.suggestions.append("💡 Multi-line tip: Process data in multiple lines, then return the final result")
+
+    def _analyze_expression_as_last_line(self, expression: ast.Expr, line_number: int,
+                                       result: APIthonValidationResult, statements: list):
+        """
+        Analyze expression statements as the last line - this is usually correct.
+
+        Expression statements return their value, which is what we want for output_key.
+        """
+        if isinstance(expression.value, ast.Call):
+            # Check if it's a method call that returns None
+            self._check_none_returning_calls(expression.value, result, line_number)
+        else:
+            # Good - expression that will return a value
+            result.return_analysis['returns_value'] = True
+            result.return_analysis['last_line_pattern'] = 'expression'
+
+            # Provide positive feedback for correct usage
+            expr_description = self._extract_expression_description(expression.value)
+            result.suggestions.append(f"✅ Good: Expression '{expr_description}' will return its value to output_key")
+
+    def _analyze_explicit_return(self, return_stmt: ast.Return, line_number: int,
+                               result: APIthonValidationResult, statements: list):
+        """
+        Analyze explicit return statements - this is the best practice.
+        """
+        result.return_analysis['returns_value'] = True
+        result.return_analysis['explicit_return'] = True
+        result.return_analysis['last_line_pattern'] = 'explicit_return'
+
+        # Provide positive feedback
+        if return_stmt.value:
+            return_value_desc = self._extract_expression_description(return_stmt.value)
+            result.suggestions.append(f"✅ Excellent: Explicit 'return {return_value_desc}' clearly shows the output value")
+        else:
+            result.add_warning(
+                "Explicit 'return' statement without a value will return None",
+                line_number=line_number,
+                error_type="return_logic",
+                remediation="Add a value after 'return' or remove the return statement if not needed",
+                educational_context="Return statements without values return None, which may not be the intended output"
+            )
 
     def _check_none_returning_calls(self, call_node: ast.Call, result: APIthonValidationResult, line_number: int = None):
         """Check for method calls that return None (in-place operations)."""
@@ -580,6 +710,140 @@ class EnhancedAPIthonValidator:
                     result.suggestions.append("These methods modify the list. Use the list variable after modification if you need the result")
                 elif method_name == 'clear':
                     result.suggestions.append("This method empties the container. Use an empty literal instead if you need an empty result")
+
+    def _analyze_control_flow_as_last_line(self, control_flow: ast.stmt, line_number: int,
+                                         result: APIthonValidationResult, statements: list):
+        """
+        Analyze control flow statements as the last line - these may not return values.
+        """
+        statement_type = type(control_flow).__name__
+
+        result.add_warning(
+            f"Script ends with {statement_type} statement which may not return a value",
+            line_number=line_number,
+            error_type="return_logic",
+            remediation=f"Add a return statement or expression after the {statement_type}",
+            educational_context="Control flow statements don't return values. Ensure your script ends with an expression or return statement."
+        )
+
+        # Provide specific guidance based on control flow type
+        if isinstance(control_flow, ast.If):
+            result.suggestions.append("💡 If statements: Ensure all branches return values, or add a final return/expression")
+            result.suggestions.append("✅ Example: if condition: return value1; else: return value2")
+        elif isinstance(control_flow, ast.For):
+            result.suggestions.append("💡 For loops: Add a return statement after the loop to provide the final result")
+            result.suggestions.append("✅ Example: for item in items: process(item); return processed_items")
+        elif isinstance(control_flow, ast.While):
+            result.suggestions.append("💡 While loops: Add a return statement after the loop")
+        elif isinstance(control_flow, ast.With):
+            result.suggestions.append("💡 With statements: Add a return statement after the with block")
+        elif isinstance(control_flow, ast.Try):
+            result.suggestions.append("💡 Try statements: Ensure all branches (try/except/finally) handle return values")
+
+    def _analyze_non_returning_statement(self, statement: ast.stmt, line_number: int,
+                                       result: APIthonValidationResult, statements: list):
+        """
+        Analyze statements that definitely don't return values.
+        """
+        statement_type = type(statement).__name__
+
+        result.add_warning(
+            f"Script ends with {statement_type} statement which returns None",
+            line_number=line_number,
+            error_type="return_logic",
+            remediation=f"Add a return statement or expression after the {statement_type}",
+            educational_context=f"{statement_type} statements don't produce output values for the output_key."
+        )
+
+    def _analyze_other_statement_types(self, statement: ast.stmt, line_number: int,
+                                     result: APIthonValidationResult, statements: list):
+        """
+        Analyze other statement types that might not return values.
+        """
+        statement_type = type(statement).__name__
+
+        result.add_warning(
+            f"Script ends with {statement_type} statement - verify it returns the intended value",
+            line_number=line_number,
+            error_type="return_logic",
+            remediation="Consider adding an explicit return statement or expression",
+            educational_context="Ensure the final statement produces the value you want assigned to output_key."
+        )
+
+    def _provide_return_logic_guidance(self, result: APIthonValidationResult, statements: list):
+        """
+        Provide comprehensive educational guidance based on script structure.
+        """
+        statement_count = len(statements)
+
+        if statement_count == 1:
+            result.suggestions.append("📚 Single-statement scripts: Use expressions directly (e.g., 'data.user.name.upper()')")
+        else:
+            result.suggestions.append("📚 Multi-statement scripts: Process data in multiple lines, then 'return final_result' or just 'final_result'")
+
+        # Add general best practices
+        result.suggestions.append("🎯 Best practice: Use explicit 'return value' for clarity")
+        result.suggestions.append("⚡ Quick fix: For assignments, either add 'return variable' or use the expression directly")
+
+    def _extract_assignment_value_description(self, value_node: ast.expr) -> str:
+        """
+        Extract a human-readable description of an assignment value.
+        """
+        try:
+            if isinstance(value_node, ast.Name):
+                return value_node.id
+            elif isinstance(value_node, ast.Constant):
+                return repr(value_node.value)
+            elif isinstance(value_node, ast.BinOp):
+                left = self._extract_expression_description(value_node.left)
+                right = self._extract_expression_description(value_node.right)
+                op = self._get_operator_symbol(value_node.op)
+                return f"{left} {op} {right}"
+            elif isinstance(value_node, ast.Call):
+                func_name = self._extract_expression_description(value_node.func)
+                return f"{func_name}(...)"
+            elif isinstance(value_node, ast.Dict):
+                return "{...}"
+            elif isinstance(value_node, ast.List):
+                return "[...]"
+            else:
+                return "expression"
+        except:
+            return "expression"
+
+    def _extract_expression_description(self, expr_node: ast.expr) -> str:
+        """
+        Extract a human-readable description of an expression.
+        """
+        try:
+            if isinstance(expr_node, ast.Name):
+                return expr_node.id
+            elif isinstance(expr_node, ast.Constant):
+                return repr(expr_node.value)
+            elif isinstance(expr_node, ast.Attribute):
+                value = self._extract_expression_description(expr_node.value)
+                return f"{value}.{expr_node.attr}"
+            elif isinstance(expr_node, ast.Call):
+                func = self._extract_expression_description(expr_node.func)
+                return f"{func}()"
+            elif isinstance(expr_node, ast.BinOp):
+                left = self._extract_expression_description(expr_node.left)
+                right = self._extract_expression_description(expr_node.right)
+                op = self._get_operator_symbol(expr_node.op)
+                return f"{left} {op} {right}"
+            else:
+                return type(expr_node).__name__.lower()
+        except:
+            return "expression"
+
+    def _get_operator_symbol(self, op: ast.operator) -> str:
+        """Get the symbol for an AST operator."""
+        op_map = {
+            ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/',
+            ast.Mod: '%', ast.Pow: '**', ast.FloorDiv: '//',
+            ast.BitOr: '|', ast.BitAnd: '&', ast.BitXor: '^'
+        }
+        return op_map.get(type(op), '?')
 
     def _validate_citation_compliance(self, step: ScriptStep, result: APIthonValidationResult):
         """Validate citation compliance for reserved output_key names."""
@@ -626,6 +890,164 @@ class EnhancedAPIthonValidator:
 
         except SyntaxError:
             pass
+
+    def _validate_resource_limits(self, code: str, result: APIthonValidationResult):
+        """Validate resource limits including byte counts, string lengths, and numeric ranges."""
+        # Code byte limit validation (4096 bytes)
+        code_bytes = len(code.encode('utf-8'))
+        result.resource_usage['code_bytes'] = code_bytes
+        result.resource_usage['code_byte_limit'] = 4096
+
+        if code_bytes > 4096:
+            result.add_error(
+                f"APIthon code exceeds 4096 byte limit: {code_bytes} bytes",
+                error_type="resource_limit",
+                remediation="Reduce code size by simplifying logic, removing comments, or splitting into multiple steps"
+            )
+        elif code_bytes > 3276:  # 80% warning
+            result.add_warning(
+                f"APIthon code approaching byte limit: {code_bytes}/4096 bytes ({code_bytes/4096*100:.1f}%)",
+                remediation="Consider optimizing code to stay well under the 4096 byte limit"
+            )
+        elif code_bytes > 3891:  # 95% warning
+            result.add_warning(
+                f"APIthon code very close to byte limit: {code_bytes}/4096 bytes ({code_bytes/4096*100:.1f}%)",
+                remediation="Urgent: Reduce code size to avoid exceeding the 4096 byte limit"
+            )
+
+        # String length validation (4096 characters maximum)
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    self._check_string_length(node.value, result)
+        except SyntaxError:
+            pass
+
+        # Numeric range validation (up to 4294967296)
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                    self._check_numeric_range(node.value, result)
+        except SyntaxError:
+            pass
+
+        # List serialization size heuristic (2096 byte limit)
+        self._validate_list_serialization_size(code, result)
+
+    def _check_string_length(self, string_value: str, result: APIthonValidationResult):
+        """Check if string length exceeds limits."""
+        length = len(string_value)
+        if length > 4096:
+            result.add_error(
+                f"String literal exceeds 4096 character limit: {length} characters",
+                error_type="resource_limit",
+                remediation="Break large strings into smaller parts or use external data sources"
+            )
+        elif length > 3276:  # 80% warning
+            result.add_warning(
+                f"String literal approaching character limit: {length}/4096 characters",
+                remediation="Consider reducing string size to stay under the 4096 character limit"
+            )
+
+    def _check_numeric_range(self, numeric_value: float, result: APIthonValidationResult):
+        """Check if numeric value exceeds range limits."""
+        max_value = 4294967296  # 2^32
+        if abs(numeric_value) > max_value:
+            result.add_error(
+                f"Numeric value exceeds range limit: {numeric_value} (max: ±{max_value})",
+                error_type="resource_limit",
+                remediation="Use smaller numeric values within the supported range"
+            )
+        elif abs(numeric_value) > max_value * 0.8:  # 80% warning
+            result.add_warning(
+                f"Numeric value approaching range limit: {numeric_value}",
+                remediation="Consider using smaller values to stay within safe limits"
+            )
+
+    def _validate_list_serialization_size(self, code: str, result: APIthonValidationResult):
+        """Validate estimated list serialization size using heuristics."""
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.List):
+                    estimated_size = self._estimate_list_size(node)
+                    result.resource_usage['estimated_list_size'] = estimated_size
+                    result.resource_usage['list_size_limit'] = 2096
+
+                    if estimated_size > 2096:
+                        result.add_error(
+                            f"List may exceed 2096 byte serialization limit: ~{estimated_size} bytes",
+                            error_type="resource_limit",
+                            remediation="Reduce list size or use simpler data structures"
+                        )
+                    elif estimated_size > 1676:  # 80% warning
+                        result.add_warning(
+                            f"List approaching serialization limit: ~{estimated_size}/2096 bytes",
+                            remediation="Consider reducing list size to stay under the 2096 byte limit"
+                        )
+        except SyntaxError:
+            pass
+
+    def _estimate_list_size(self, list_node: ast.List) -> int:
+        """Estimate the serialized size of a list node."""
+        estimated_size = 2  # [] brackets
+
+        for i, element in enumerate(list_node.elts):
+            if i > 0:
+                estimated_size += 2  # ", " separator
+
+            if isinstance(element, ast.Constant):
+                if isinstance(element.value, str):
+                    estimated_size += len(element.value) + 2  # quotes
+                elif isinstance(element.value, (int, float)):
+                    estimated_size += len(str(element.value))
+                elif isinstance(element.value, bool):
+                    estimated_size += 4 if element.value else 5  # true/false
+                else:
+                    estimated_size += 10  # rough estimate for other types
+            elif isinstance(element, ast.Dict):
+                estimated_size += self._estimate_dict_size(element)
+            elif isinstance(element, ast.List):
+                estimated_size += self._estimate_list_size(element)
+            else:
+                estimated_size += 20  # rough estimate for complex expressions
+
+        return estimated_size
+
+    def _estimate_dict_size(self, dict_node: ast.Dict) -> int:
+        """Estimate the serialized size of a dictionary node."""
+        estimated_size = 2  # {} brackets
+
+        for i, (key, value) in enumerate(zip(dict_node.keys, dict_node.values)):
+            if i > 0:
+                estimated_size += 2  # ", " separator
+
+            # Key size
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                estimated_size += len(key.value) + 2  # quotes
+            else:
+                estimated_size += 10  # rough estimate
+
+            estimated_size += 2  # ": " separator
+
+            # Value size
+            if isinstance(value, ast.Constant):
+                if isinstance(value.value, str):
+                    estimated_size += len(value.value) + 2  # quotes
+                elif isinstance(value.value, (int, float)):
+                    estimated_size += len(str(value.value))
+                else:
+                    estimated_size += 10
+            elif isinstance(value, ast.Dict):
+                estimated_size += self._estimate_dict_size(value)
+            elif isinstance(value, ast.List):
+                estimated_size += self._estimate_list_size(value)
+            else:
+                estimated_size += 20
+
+        return estimated_size
 
     def _validate_multiple_citation_format(self, code: str, result: APIthonValidationResult):
         """Validate that script returns a list of citation-compatible dictionaries."""

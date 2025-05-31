@@ -236,9 +236,10 @@ TUTORIAL_COMPLETION_CRITERIA = {
 
 def get_tutorial_json_data(tutorial_id: str, step_type: str = "user"):
     """Get sample JSON data for a specific tutorial and step type."""
-    if tutorial_id == "basic_single_step" or tutorial_id == "interactive_basic":
+    # Handle unified tutorial system IDs
+    if tutorial_id in ["basic_single_step", "interactive_basic", "unified_interactive_basic", "user_lookup", "basic_example"]:
         return BASIC_USER_LOOKUP_JSON
-    elif tutorial_id == "advanced_compound_action":
+    elif tutorial_id in ["advanced_compound_action", "unified_module_1_basic"]:
         if step_type == "user":
             return ADVANCED_USER_DATA_JSON
         elif step_type == "ticket":
@@ -247,9 +248,10 @@ def get_tutorial_json_data(tutorial_id: str, step_type: str = "user"):
 
 def get_tutorial_script_example(tutorial_id: str):
     """Get sample script code for a specific tutorial."""
-    if tutorial_id == "basic_single_step" or tutorial_id == "interactive_basic":
+    # Handle unified tutorial system IDs
+    if tutorial_id in ["basic_single_step", "interactive_basic", "unified_interactive_basic", "unified_module_1_basic"]:
         return BASIC_SCRIPT_EXAMPLE
-    elif tutorial_id == "advanced_compound_action":
+    elif tutorial_id in ["advanced_compound_action"]:
         return ADVANCED_SCRIPT_EXAMPLE
     return "# Enter your script code here\nreturn {}"
 

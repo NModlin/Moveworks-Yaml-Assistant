@@ -11,7 +11,7 @@ from typing import Any
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QListWidget, QListWidgetItem, QTextEdit, QLabel,
-    QPushButton, QMessageBox,
+    QPushButton, QMessageBox, QDialog,
     QStackedWidget, QTreeWidget, QTreeWidgetItem, QGroupBox,
     QFormLayout, QLineEdit, QTableWidget, QTableWidgetItem,
     QComboBox, QTabWidget, QScrollArea, QCheckBox, QFrame
@@ -32,10 +32,12 @@ from help_system import get_tooltip, get_contextual_help
 from tutorial_system import TutorialManager, TutorialDialog
 from integrated_tutorial_system import InteractiveTutorialManager
 from tutorial_integration import TutorialIntegrationManager
+from unified_tutorial_system import UnifiedTutorialManager
 from template_library import TemplateBrowserDialog, template_library
 from enhanced_json_selector import EnhancedJsonPathSelector
 from contextual_examples import ContextualExamplesPanel
 from enhanced_validator import enhanced_validator, ValidationError
+from bender_function_builder import BenderFunctionBuilder
 from enhanced_script_editor import EnhancedScriptEditor
 from enhanced_apiton_validator import enhanced_apiton_validator, APIthonValidationResult
 from error_display import APIthonValidationWidget, EnhancedAPIthonValidationWidget
@@ -134,6 +136,76 @@ class WorkflowListWidget(QListWidget):
             self.setCurrentRow(current_row + 1)
 
 
+class EnhancedReturnMapperTable(QTableWidget):
+    """Enhanced table widget for return step output mapper with drag-drop support."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QTableWidget.DropOnly)
+
+    def dragEnterEvent(self, event):
+        """Handle drag enter events."""
+        if event.mimeData().hasText():
+            # Check if the dragged text looks like a data path
+            text = event.mimeData().text()
+            if text.startswith(('data.', 'meta_info.')):
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        """Handle drag move events."""
+        if event.mimeData().hasText():
+            text = event.mimeData().text()
+            if text.startswith(('data.', 'meta_info.')):
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        """Handle drop events."""
+        if event.mimeData().hasText():
+            text = event.mimeData().text()
+            if text.startswith(('data.', 'meta_info.')):
+                # Find the drop position
+                item = self.itemAt(event.position().toPoint())
+                if item:
+                    row = item.row()
+                    col = item.column()
+
+                    # If dropping on the data path column (column 1), set the text
+                    if col == 1:
+                        item.setText(text)
+                    # If dropping on output key column (column 0), add a new row
+                    elif col == 0:
+                        # Add a new row and set the data path
+                        new_row = self.rowCount()
+                        self.insertRow(new_row)
+                        self.setItem(new_row, 0, QTableWidgetItem(""))
+                        self.setItem(new_row, 1, QTableWidgetItem(text))
+                else:
+                    # Drop in empty space - add a new row
+                    new_row = self.rowCount()
+                    self.insertRow(new_row)
+                    self.setItem(new_row, 0, QTableWidgetItem(""))
+                    self.setItem(new_row, 1, QTableWidgetItem(text))
+
+                event.acceptProposedAction()
+
+                # Emit itemChanged signal to trigger validation
+                if hasattr(self, 'itemChanged'):
+                    self.itemChanged.emit(self.item(self.rowCount()-1, 1))
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+
+
 class StepConfigurationPanel(QStackedWidget):
     """Panel for configuring step properties."""
 
@@ -155,6 +227,18 @@ class StepConfigurationPanel(QStackedWidget):
         self.script_config_widget = self._create_script_config_widget()
         self.addWidget(self.script_config_widget)
 
+        self.switch_config_widget = self._create_switch_config_widget()
+        self.addWidget(self.switch_config_widget)
+
+        self.return_config_widget = self._create_return_config_widget()
+        self.addWidget(self.return_config_widget)
+
+        self.try_catch_config_widget = self._create_try_catch_config_widget()
+        self.addWidget(self.try_catch_config_widget)
+
+        self.parallel_config_widget = self._create_parallel_config_widget()
+        self.addWidget(self.parallel_config_widget)
+
     def _create_action_config_widget(self):
         """Create the configuration widget for action steps."""
         widget = QWidget()
@@ -167,13 +251,30 @@ class StepConfigurationPanel(QStackedWidget):
         self.action_name_edit = QLineEdit()
         self.action_name_edit.textChanged.connect(self._on_action_data_changed)
         self.action_name_edit.textChanged.connect(self._validate_current_step)
-        self.action_name_edit.setToolTip(get_tooltip("action_name"))
+        self.action_name_edit.textChanged.connect(self._validate_action_name_field)
+        self.action_name_edit.setToolTip(get_tooltip("action_name") + "\n\nRequired field. Use Moveworks action names (e.g., 'mw.get_user_by_email') or custom action names.")
         self.action_name_edit.setPlaceholderText("e.g., mw.get_user_by_email")
+
+        # Add validation indicator for action_name
+        self.action_name_indicator = QLabel()
+        self.action_name_indicator.setFixedSize(16, 16)
+        self.action_name_indicator.setStyleSheet("color: red; font-weight: bold;")
+        self.action_name_indicator.setText("*")
+        self.action_name_indicator.setToolTip("Required field")
+
+        # Create horizontal layout for action_name with validation indicator
+        action_name_layout = QHBoxLayout()
+        action_name_layout.addWidget(self.action_name_edit)
+        action_name_layout.addWidget(self.action_name_indicator)
+        action_name_layout.setContentsMargins(0, 0, 0, 0)
+
+        action_name_widget = QWidget()
+        action_name_widget.setLayout(action_name_layout)
 
         # Create label with mandatory field indicator
         action_name_label = QLabel("Action Name: *")
         action_name_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
-        form_layout.addRow(action_name_label, self.action_name_edit)
+        form_layout.addRow(action_name_label, action_name_widget)
 
         self.action_description_edit = QLineEdit()
         self.action_description_edit.textChanged.connect(self._on_action_data_changed)
@@ -184,13 +285,30 @@ class StepConfigurationPanel(QStackedWidget):
         self.action_output_key_edit = QLineEdit()
         self.action_output_key_edit.textChanged.connect(self._on_action_data_changed)
         self.action_output_key_edit.textChanged.connect(self._validate_current_step)
-        self.action_output_key_edit.setToolTip(get_tooltip("output_key"))
+        self.action_output_key_edit.textChanged.connect(self._validate_output_key_field)
+        self.action_output_key_edit.setToolTip(get_tooltip("output_key") + "\n\nRequired field. Must use lowercase_snake_case format.")
         self.action_output_key_edit.setPlaceholderText("e.g., user_info")
+
+        # Add validation indicator for output_key
+        self.action_output_key_indicator = QLabel()
+        self.action_output_key_indicator.setFixedSize(16, 16)
+        self.action_output_key_indicator.setStyleSheet("color: red; font-weight: bold;")
+        self.action_output_key_indicator.setText("*")
+        self.action_output_key_indicator.setToolTip("Required field")
+
+        # Create horizontal layout for output_key with validation indicator
+        output_key_layout = QHBoxLayout()
+        output_key_layout.addWidget(self.action_output_key_edit)
+        output_key_layout.addWidget(self.action_output_key_indicator)
+        output_key_layout.setContentsMargins(0, 0, 0, 0)
+
+        output_key_widget = QWidget()
+        output_key_widget.setLayout(output_key_layout)
 
         # Create label with mandatory field indicator
         output_key_label = QLabel("Output Key: *")
         output_key_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
-        form_layout.addRow(output_key_label, self.action_output_key_edit)
+        form_layout.addRow(output_key_label, output_key_widget)
 
         layout.addWidget(form_group)
 
@@ -317,21 +435,61 @@ class StepConfigurationPanel(QStackedWidget):
         self.script_output_key_edit = QLineEdit()
         self.script_output_key_edit.textChanged.connect(self._on_script_data_changed)
         self.script_output_key_edit.textChanged.connect(self._validate_current_step)
-        self.script_output_key_edit.setToolTip(get_tooltip("output_key"))
+        self.script_output_key_edit.textChanged.connect(self._validate_output_key_field)
+        self.script_output_key_edit.setToolTip(get_tooltip("output_key") + "\n\nRequired field. Must use lowercase_snake_case format.")
         self.script_output_key_edit.setPlaceholderText("e.g., processed_data")
+
+        # Add validation indicator for script output_key
+        self.script_output_key_indicator = QLabel()
+        self.script_output_key_indicator.setFixedSize(16, 16)
+        self.script_output_key_indicator.setStyleSheet("color: red; font-weight: bold;")
+        self.script_output_key_indicator.setText("*")
+        self.script_output_key_indicator.setToolTip("Required field")
+
+        # Create horizontal layout for script output_key with validation indicator
+        script_output_key_layout = QHBoxLayout()
+        script_output_key_layout.addWidget(self.script_output_key_edit)
+        script_output_key_layout.addWidget(self.script_output_key_indicator)
+        script_output_key_layout.setContentsMargins(0, 0, 0, 0)
+
+        script_output_key_widget = QWidget()
+        script_output_key_widget.setLayout(script_output_key_layout)
 
         # Create label with mandatory field indicator
         script_output_key_label = QLabel("Output Key: *")
         script_output_key_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
-        form_layout.addRow(script_output_key_label, self.script_output_key_edit)
+        form_layout.addRow(script_output_key_label, script_output_key_widget)
 
         layout.addWidget(form_group)
 
-        # Enhanced script editor section
+        # Enhanced script editor section with code field validation
+        script_editor_group = QGroupBox("APIthon Script Code")
+        script_editor_layout = QVBoxLayout(script_editor_group)
+
+        # Add code field validation header
+        code_field_layout = QHBoxLayout()
+        code_field_label = QLabel("Code: *")
+        code_field_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
+        code_field_layout.addWidget(code_field_label)
+
+        # Add validation indicator for script code field
+        self.script_code_indicator = QLabel()
+        self.script_code_indicator.setFixedSize(16, 16)
+        self.script_code_indicator.setStyleSheet("color: red; font-weight: bold;")
+        self.script_code_indicator.setText("*")
+        self.script_code_indicator.setToolTip("Required field")
+        code_field_layout.addWidget(self.script_code_indicator)
+        code_field_layout.addStretch()
+
+        script_editor_layout.addLayout(code_field_layout)
+
         self.enhanced_script_editor = EnhancedScriptEditor()
         self.enhanced_script_editor.script_changed.connect(self._on_script_data_changed)
+        self.enhanced_script_editor.script_changed.connect(self._validate_script_code_field)
         self.enhanced_script_editor.validation_updated.connect(self._on_script_validation_updated)
-        layout.addWidget(self.enhanced_script_editor)
+        script_editor_layout.addWidget(self.enhanced_script_editor)
+
+        layout.addWidget(script_editor_group)
 
         # Input arguments table
         input_args_group = QGroupBox("Input Arguments")
@@ -372,6 +530,716 @@ class StepConfigurationPanel(QStackedWidget):
 
         return widget
 
+    def _create_switch_config_widget(self):
+        """Create the configuration widget for switch steps."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Create form layout for basic properties
+        form_group = QGroupBox("Switch Properties")
+        form_layout = QFormLayout(form_group)
+
+        self.switch_description_edit = QLineEdit()
+        self.switch_description_edit.textChanged.connect(self._on_switch_data_changed)
+        self.switch_description_edit.setToolTip(get_tooltip("description"))
+        self.switch_description_edit.setPlaceholderText("Optional description of this switch statement")
+        form_layout.addRow("Description:", self.switch_description_edit)
+
+        self.switch_output_key_edit = QLineEdit()
+        self.switch_output_key_edit.textChanged.connect(self._on_switch_data_changed)
+        self.switch_output_key_edit.setToolTip(get_tooltip("output_key") + "\n\nUsually '_' for switch statements")
+        self.switch_output_key_edit.setPlaceholderText("_")
+        form_layout.addRow("Output Key:", self.switch_output_key_edit)
+
+        layout.addWidget(form_group)
+
+        # Switch cases section
+        cases_group = QGroupBox("Switch Cases")
+        cases_layout = QVBoxLayout(cases_group)
+
+        # Cases list and controls
+        cases_header_layout = QHBoxLayout()
+        cases_header_label = QLabel("Cases:")
+        cases_header_label.setStyleSheet("font-weight: bold;")
+        cases_header_layout.addWidget(cases_header_label)
+
+        add_case_btn = QPushButton("Add Case")
+        add_case_btn.clicked.connect(self._add_switch_case)
+        add_case_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #388e3c;
+            }
+        """)
+        cases_header_layout.addWidget(add_case_btn)
+        cases_header_layout.addStretch()
+
+        cases_layout.addLayout(cases_header_layout)
+
+        # Cases list widget
+        self.switch_cases_list = QListWidget()
+        self.switch_cases_list.setMaximumHeight(150)
+        self.switch_cases_list.itemClicked.connect(self._on_switch_case_selected)
+        cases_layout.addWidget(self.switch_cases_list)
+
+        # Case controls
+        case_controls_layout = QHBoxLayout()
+
+        edit_case_btn = QPushButton("Edit Case")
+        edit_case_btn.clicked.connect(self._edit_switch_case)
+        case_controls_layout.addWidget(edit_case_btn)
+
+        remove_case_btn = QPushButton("Remove Case")
+        remove_case_btn.clicked.connect(self._remove_switch_case)
+        remove_case_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        case_controls_layout.addWidget(remove_case_btn)
+        case_controls_layout.addStretch()
+
+        cases_layout.addLayout(case_controls_layout)
+        layout.addWidget(cases_group)
+
+        # Default case section
+        default_group = QGroupBox("Default Case")
+        default_layout = QVBoxLayout(default_group)
+
+        default_header_layout = QHBoxLayout()
+        default_header_label = QLabel("Default case (executed when no conditions match):")
+        default_header_layout.addWidget(default_header_label)
+
+        add_default_btn = QPushButton("Add Default Case")
+        add_default_btn.clicked.connect(self._add_default_case)
+        default_header_layout.addWidget(add_default_btn)
+        default_header_layout.addStretch()
+
+        default_layout.addLayout(default_header_layout)
+
+        self.default_case_label = QLabel("No default case defined")
+        self.default_case_label.setStyleSheet("color: #666; font-style: italic;")
+        default_layout.addWidget(self.default_case_label)
+
+        default_controls_layout = QHBoxLayout()
+
+        edit_default_btn = QPushButton("Edit Default")
+        edit_default_btn.clicked.connect(self._edit_default_case)
+        default_controls_layout.addWidget(edit_default_btn)
+
+        remove_default_btn = QPushButton("Remove Default")
+        remove_default_btn.clicked.connect(self._remove_default_case)
+        default_controls_layout.addWidget(remove_default_btn)
+        default_controls_layout.addStretch()
+
+        default_layout.addLayout(default_controls_layout)
+        layout.addWidget(default_group)
+
+        return widget
+
+    def _create_return_config_widget(self):
+        """Create the configuration widget for return steps."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Create form layout for basic properties
+        form_group = QGroupBox("Return Properties")
+        form_layout = QFormLayout(form_group)
+
+        self.return_description_edit = QLineEdit()
+        self.return_description_edit.textChanged.connect(self._on_return_data_changed)
+
+        # Setup validation timer for debounced validation
+        self.return_validation_timer = QTimer()
+        self.return_validation_timer.setSingleShot(True)
+        self.return_validation_timer.timeout.connect(self._validate_return_output_mapper)
+        self.return_description_edit.textChanged.connect(lambda: self.return_validation_timer.start(300))
+        self.return_description_edit.setToolTip("Optional description of this return statement")
+        self.return_description_edit.setPlaceholderText("Optional description of this return statement")
+        form_layout.addRow("Description:", self.return_description_edit)
+
+        layout.addWidget(form_group)
+
+        # Output mapper section with enhanced features
+        mapper_group = QGroupBox("Output Mapper - Transform Data for Return")
+        mapper_layout = QVBoxLayout(mapper_group)
+
+        # Enhanced header with contextual help
+        mapper_header = QLabel("Map output keys to data paths:")
+        mapper_header.setStyleSheet("font-weight: bold; color: #333; font-size: 12px;")
+        mapper_layout.addWidget(mapper_header)
+
+        help_text = QLabel(
+            "Define how to transform data for the return value. Each key-value pair maps an output field to a data path. "
+            "Use lowercase_snake_case for output keys and valid Moveworks DSL expressions for data paths."
+        )
+        help_text.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 8px;")
+        help_text.setWordWrap(True)
+        mapper_layout.addWidget(help_text)
+
+        # Quick tips section
+        tips_label = QLabel("💡 Quick Tips:")
+        tips_label.setStyleSheet("font-weight: bold; color: #2e7d32; font-size: 11px; margin-top: 4px;")
+        mapper_layout.addWidget(tips_label)
+
+        tips_text = QLabel(
+            "• Drag paths from JSON Path Selector below\n"
+            "• Use data.output_key.field for step outputs\n"
+            "• Use meta_info.user.field for user context\n"
+            "• Complex expressions: data.status == 'active'"
+        )
+        tips_text.setStyleSheet("color: #666; font-size: 10px; margin-left: 16px; margin-bottom: 8px;")
+        mapper_layout.addWidget(tips_text)
+
+        # Enhanced output mapper table with drag-drop support
+        self.return_output_mapper_table = EnhancedReturnMapperTable()
+        self.return_output_mapper_table.setColumnCount(2)
+        self.return_output_mapper_table.setHorizontalHeaderLabels(["Output Key", "Data Path"])
+        self.return_output_mapper_table.horizontalHeader().setStretchLastSection(True)
+        self.return_output_mapper_table.setMaximumHeight(200)
+        self.return_output_mapper_table.itemChanged.connect(self._on_return_data_changed)
+        self.return_output_mapper_table.itemChanged.connect(lambda: self.return_validation_timer.start(300))
+
+        # Enable drag and drop
+        self.return_output_mapper_table.setAcceptDrops(True)
+        self.return_output_mapper_table.setDragDropMode(QTableWidget.DropOnly)
+
+        # Set column widths
+        header = self.return_output_mapper_table.horizontalHeader()
+        header.resizeSection(0, 150)  # Output Key column
+
+        # Add validation indicators
+        self.return_output_mapper_table.setToolTip(
+            "Drag data paths from JSON Path Selector or type manually.\n"
+            "Output keys must use lowercase_snake_case format.\n"
+            "Data paths support Moveworks DSL expressions."
+        )
+
+        mapper_layout.addWidget(self.return_output_mapper_table)
+
+        # Enhanced table controls with templates
+        table_controls_layout = QHBoxLayout()
+
+        add_mapping_btn = QPushButton("➕ Add Mapping")
+        add_mapping_btn.clicked.connect(self._add_return_mapping)
+        add_mapping_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #388e3c;
+            }
+        """)
+        table_controls_layout.addWidget(add_mapping_btn)
+
+        # Add template button for common patterns
+        template_btn = QPushButton("📋 Use Template")
+        template_btn.clicked.connect(self._show_return_templates)
+        template_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196f3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+        """)
+        table_controls_layout.addWidget(template_btn)
+
+        remove_mapping_btn = QPushButton("🗑️ Remove Selected")
+        remove_mapping_btn.clicked.connect(self._remove_return_mapping)
+        remove_mapping_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        table_controls_layout.addWidget(remove_mapping_btn)
+        table_controls_layout.addStretch()
+
+        mapper_layout.addLayout(table_controls_layout)
+
+        # Enhanced examples section with more comprehensive patterns
+        example_label = QLabel("📚 Common Patterns & Examples:")
+        example_label.setStyleSheet("font-weight: bold; color: #333; margin-top: 8px; font-size: 12px;")
+        mapper_layout.addWidget(example_label)
+
+        # Basic examples
+        basic_examples = QLabel("Basic Data Mapping:")
+        basic_examples.setStyleSheet("font-weight: bold; color: #2e7d32; font-size: 11px; margin-top: 4px;")
+        mapper_layout.addWidget(basic_examples)
+
+        basic_text = QLabel("""• user_id → data.user_info.user.id
+• user_name → data.user_info.user.name
+• user_email → data.user_info.user.email
+• department → meta_info.user.department""")
+        basic_text.setStyleSheet("color: #666; font-size: 10px; font-family: monospace; margin-left: 16px;")
+        mapper_layout.addWidget(basic_text)
+
+        # Advanced examples
+        advanced_examples = QLabel("Advanced DSL Expressions:")
+        advanced_examples.setStyleSheet("font-weight: bold; color: #1976d2; font-size: 11px; margin-top: 4px;")
+        mapper_layout.addWidget(advanced_examples)
+
+        advanced_text = QLabel("""• is_active → data.user_info.status == 'active'
+• full_name → data.user_info.first_name + ' ' + data.user_info.last_name
+• has_permissions → data.permissions.length > 0
+• request_timestamp → meta_info.request.timestamp""")
+        advanced_text.setStyleSheet("color: #666; font-size: 10px; font-family: monospace; margin-left: 16px;")
+        mapper_layout.addWidget(advanced_text)
+
+        layout.addWidget(mapper_group)
+
+        return widget
+
+    def _create_try_catch_config_widget(self):
+        """Create the configuration widget for try/catch steps."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Create form layout for basic properties
+        form_group = QGroupBox("Try/Catch Properties")
+        form_layout = QFormLayout(form_group)
+
+        self.try_catch_description_edit = QLineEdit()
+        self.try_catch_description_edit.textChanged.connect(self._on_try_catch_data_changed)
+        self.try_catch_description_edit.setToolTip("Optional description of this try/catch block")
+        self.try_catch_description_edit.setPlaceholderText("Optional description of this try/catch block")
+        form_layout.addRow("Description:", self.try_catch_description_edit)
+
+        self.try_catch_output_key_edit = QLineEdit()
+        self.try_catch_output_key_edit.textChanged.connect(self._on_try_catch_data_changed)
+        self.try_catch_output_key_edit.setToolTip("Required field. Output key for storing try/catch results. Must use lowercase_snake_case format.")
+        self.try_catch_output_key_edit.setPlaceholderText("e.g., error_handling_result")
+
+        # Add validation indicator for output_key
+        self.try_catch_output_key_indicator = QLabel()
+        self.try_catch_output_key_indicator.setFixedSize(16, 16)
+        self.try_catch_output_key_indicator.setStyleSheet("color: red; font-weight: bold;")
+        self.try_catch_output_key_indicator.setText("*")
+        self.try_catch_output_key_indicator.setToolTip("Required field")
+
+        # Create horizontal layout for output_key with validation indicator
+        output_key_layout = QHBoxLayout()
+        output_key_layout.addWidget(self.try_catch_output_key_edit)
+        output_key_layout.addWidget(self.try_catch_output_key_indicator)
+        output_key_layout.setContentsMargins(0, 0, 0, 0)
+
+        output_key_widget = QWidget()
+        output_key_widget.setLayout(output_key_layout)
+
+        # Create label with mandatory field indicator
+        output_key_label = QLabel("Output Key: *")
+        output_key_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
+        form_layout.addRow(output_key_label, output_key_widget)
+
+        layout.addWidget(form_group)
+
+        # Try block section
+        try_group = QGroupBox("Try Block - Steps to Execute")
+        try_layout = QVBoxLayout(try_group)
+
+        try_header = QLabel("Steps to execute in the try block:")
+        try_header.setStyleSheet("font-weight: bold; color: #333; font-size: 12px;")
+        try_layout.addWidget(try_header)
+
+        help_text = QLabel("Add the steps that might fail and need error handling. These steps will be executed first.")
+        help_text.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 8px;")
+        help_text.setWordWrap(True)
+        try_layout.addWidget(help_text)
+
+        # Try steps list
+        self.try_steps_list = QListWidget()
+        self.try_steps_list.setMaximumHeight(150)
+        self.try_steps_list.setToolTip("List of steps to execute in the try block")
+        try_layout.addWidget(self.try_steps_list)
+
+        # Try steps controls
+        try_controls_layout = QHBoxLayout()
+
+        add_try_step_btn = QPushButton("➕ Add Try Step")
+        add_try_step_btn.clicked.connect(self._add_try_step)
+        add_try_step_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #388e3c;
+            }
+        """)
+        try_controls_layout.addWidget(add_try_step_btn)
+
+        remove_try_step_btn = QPushButton("🗑️ Remove Selected")
+        remove_try_step_btn.clicked.connect(self._remove_try_step)
+        remove_try_step_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        try_controls_layout.addWidget(remove_try_step_btn)
+        try_controls_layout.addStretch()
+
+        try_layout.addLayout(try_controls_layout)
+        layout.addWidget(try_group)
+
+        # Catch block section
+        catch_group = QGroupBox("Catch Block - Error Handling")
+        catch_layout = QVBoxLayout(catch_group)
+
+        catch_header = QLabel("Error handling configuration:")
+        catch_header.setStyleSheet("font-weight: bold; color: #333; font-size: 12px;")
+        catch_layout.addWidget(catch_header)
+
+        # Status codes section
+        status_codes_layout = QHBoxLayout()
+        status_codes_label = QLabel("Status Codes:")
+        status_codes_label.setStyleSheet("font-weight: bold; color: #666;")
+        status_codes_layout.addWidget(status_codes_label)
+
+        self.status_codes_edit = QLineEdit()
+        self.status_codes_edit.textChanged.connect(self._on_try_catch_data_changed)
+        self.status_codes_edit.setToolTip("Optional comma-separated list of HTTP status codes that trigger the catch block (e.g., 400,404,500)")
+        self.status_codes_edit.setPlaceholderText("e.g., 400,404,500")
+        status_codes_layout.addWidget(self.status_codes_edit)
+
+        catch_layout.addLayout(status_codes_layout)
+
+        # Catch steps
+        catch_steps_header = QLabel("Steps to execute when an error occurs:")
+        catch_steps_header.setStyleSheet("font-weight: bold; color: #333; margin-top: 8px;")
+        catch_layout.addWidget(catch_steps_header)
+
+        catch_help_text = QLabel("Add steps to handle errors, log information, or provide fallback behavior.")
+        catch_help_text.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 8px;")
+        catch_help_text.setWordWrap(True)
+        catch_layout.addWidget(catch_help_text)
+
+        # Catch steps list
+        self.catch_steps_list = QListWidget()
+        self.catch_steps_list.setMaximumHeight(150)
+        self.catch_steps_list.setToolTip("List of steps to execute in the catch block")
+        catch_layout.addWidget(self.catch_steps_list)
+
+        # Catch steps controls
+        catch_controls_layout = QHBoxLayout()
+
+        add_catch_step_btn = QPushButton("➕ Add Catch Step")
+        add_catch_step_btn.clicked.connect(self._add_catch_step)
+        add_catch_step_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ff9800;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #f57c00;
+            }
+        """)
+        catch_controls_layout.addWidget(add_catch_step_btn)
+
+        remove_catch_step_btn = QPushButton("🗑️ Remove Selected")
+        remove_catch_step_btn.clicked.connect(self._remove_catch_step)
+        remove_catch_step_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        catch_controls_layout.addWidget(remove_catch_step_btn)
+        catch_controls_layout.addStretch()
+
+        catch_layout.addLayout(catch_controls_layout)
+        layout.addWidget(catch_group)
+
+        # Examples section
+        examples_label = QLabel("📚 Common Try/Catch Patterns:")
+        examples_label.setStyleSheet("font-weight: bold; color: #333; margin-top: 8px; font-size: 12px;")
+        layout.addWidget(examples_label)
+
+        examples_text = QLabel("""• API Call with Fallback: Try external API, catch errors and use cached data
+• User Validation: Try user lookup, catch not found and create new user
+• File Processing: Try file operation, catch errors and log failure details""")
+        examples_text.setStyleSheet("color: #666; font-size: 10px; margin-left: 16px; margin-bottom: 8px;")
+        examples_text.setWordWrap(True)
+        layout.addWidget(examples_text)
+
+        return widget
+
+    def _create_parallel_config_widget(self):
+        """Create the configuration widget for parallel steps."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+
+        # Create form layout for basic properties
+        form_group = QGroupBox("Parallel Properties")
+        form_layout = QFormLayout(form_group)
+
+        self.parallel_description_edit = QLineEdit()
+        self.parallel_description_edit.textChanged.connect(self._on_parallel_data_changed)
+        self.parallel_description_edit.setToolTip("Optional description of this parallel execution block")
+        self.parallel_description_edit.setPlaceholderText("Optional description of this parallel execution block")
+        form_layout.addRow("Description:", self.parallel_description_edit)
+
+        self.parallel_output_key_edit = QLineEdit()
+        self.parallel_output_key_edit.textChanged.connect(self._on_parallel_data_changed)
+        self.parallel_output_key_edit.setToolTip("Required field. Output key for storing parallel execution results. Must use lowercase_snake_case format.")
+        self.parallel_output_key_edit.setPlaceholderText("e.g., parallel_results")
+
+        # Add validation indicator for output_key
+        self.parallel_output_key_indicator = QLabel()
+        self.parallel_output_key_indicator.setFixedSize(16, 16)
+        self.parallel_output_key_indicator.setStyleSheet("color: red; font-weight: bold;")
+        self.parallel_output_key_indicator.setText("*")
+        self.parallel_output_key_indicator.setToolTip("Required field")
+
+        # Create horizontal layout for output_key with validation indicator
+        output_key_layout = QHBoxLayout()
+        output_key_layout.addWidget(self.parallel_output_key_edit)
+        output_key_layout.addWidget(self.parallel_output_key_indicator)
+        output_key_layout.setContentsMargins(0, 0, 0, 0)
+
+        output_key_widget = QWidget()
+        output_key_widget.setLayout(output_key_layout)
+
+        # Create label with mandatory field indicator
+        output_key_label = QLabel("Output Key: *")
+        output_key_label.setStyleSheet("font-weight: bold; color: #d32f2f;")
+        form_layout.addRow(output_key_label, output_key_widget)
+
+        layout.addWidget(form_group)
+
+        # Mode selection with tabs
+        mode_group = QGroupBox("Parallel Execution Mode")
+        mode_layout = QVBoxLayout(mode_group)
+
+        mode_header = QLabel("Choose the parallel execution mode:")
+        mode_header.setStyleSheet("font-weight: bold; color: #333; font-size: 12px;")
+        mode_layout.addWidget(mode_header)
+
+        # Create tab widget for mode selection
+        self.parallel_mode_tabs = QTabWidget()
+        self.parallel_mode_tabs.currentChanged.connect(self._on_parallel_mode_changed)
+
+        # For Loop Mode Tab
+        for_loop_tab = QWidget()
+        for_loop_layout = QVBoxLayout(for_loop_tab)
+
+        for_loop_help = QLabel("Execute steps in parallel for each item in a data array.")
+        for_loop_help.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 8px;")
+        for_loop_help.setWordWrap(True)
+        for_loop_layout.addWidget(for_loop_help)
+
+        # For loop configuration
+        for_config_layout = QFormLayout()
+
+        self.parallel_each_edit = QLineEdit()
+        self.parallel_each_edit.textChanged.connect(self._on_parallel_data_changed)
+        self.parallel_each_edit.setToolTip("Variable name for the current item (e.g., 'user', 'item')")
+        self.parallel_each_edit.setPlaceholderText("e.g., user")
+        for_config_layout.addRow("Each (item variable):", self.parallel_each_edit)
+
+        self.parallel_in_source_edit = QLineEdit()
+        self.parallel_in_source_edit.textChanged.connect(self._on_parallel_data_changed)
+        self.parallel_in_source_edit.setToolTip("Data path to the array to iterate over (e.g., 'data.users_list')")
+        self.parallel_in_source_edit.setPlaceholderText("e.g., data.users_list")
+        for_config_layout.addRow("In (data source):", self.parallel_in_source_edit)
+
+        for_loop_layout.addLayout(for_config_layout)
+
+        # For loop steps
+        for_steps_header = QLabel("Steps to execute for each item:")
+        for_steps_header.setStyleSheet("font-weight: bold; color: #333; margin-top: 8px;")
+        for_loop_layout.addWidget(for_steps_header)
+
+        self.parallel_for_steps_list = QListWidget()
+        self.parallel_for_steps_list.setMaximumHeight(120)
+        for_loop_layout.addWidget(self.parallel_for_steps_list)
+
+        # For loop controls
+        for_controls_layout = QHBoxLayout()
+        add_for_step_btn = QPushButton("➕ Add Step")
+        add_for_step_btn.clicked.connect(self._add_parallel_for_step)
+        add_for_step_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #388e3c;
+            }
+        """)
+        for_controls_layout.addWidget(add_for_step_btn)
+
+        remove_for_step_btn = QPushButton("🗑️ Remove")
+        remove_for_step_btn.clicked.connect(self._remove_parallel_for_step)
+        remove_for_step_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        for_controls_layout.addWidget(remove_for_step_btn)
+        for_controls_layout.addStretch()
+
+        for_loop_layout.addLayout(for_controls_layout)
+        self.parallel_mode_tabs.addTab(for_loop_tab, "🔄 For Loop Mode")
+
+        # Branches Mode Tab
+        branches_tab = QWidget()
+        branches_layout = QVBoxLayout(branches_tab)
+
+        branches_help = QLabel("Execute multiple independent branches in parallel.")
+        branches_help.setStyleSheet("color: #666; font-size: 11px; margin-bottom: 8px;")
+        branches_help.setWordWrap(True)
+        branches_layout.addWidget(branches_help)
+
+        # Branches list
+        branches_header = QLabel("Parallel branches:")
+        branches_header.setStyleSheet("font-weight: bold; color: #333; margin-top: 8px;")
+        branches_layout.addWidget(branches_header)
+
+        self.parallel_branches_list = QListWidget()
+        self.parallel_branches_list.setMaximumHeight(120)
+        branches_layout.addWidget(self.parallel_branches_list)
+
+        # Branches controls
+        branches_controls_layout = QHBoxLayout()
+        add_branch_btn = QPushButton("➕ Add Branch")
+        add_branch_btn.clicked.connect(self._add_parallel_branch)
+        add_branch_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196f3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+        """)
+        branches_controls_layout.addWidget(add_branch_btn)
+
+        remove_branch_btn = QPushButton("🗑️ Remove")
+        remove_branch_btn.clicked.connect(self._remove_parallel_branch)
+        remove_branch_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        branches_controls_layout.addWidget(remove_branch_btn)
+        branches_controls_layout.addStretch()
+
+        branches_layout.addLayout(branches_controls_layout)
+        self.parallel_mode_tabs.addTab(branches_tab, "🌿 Branches Mode")
+
+        mode_layout.addWidget(self.parallel_mode_tabs)
+        layout.addWidget(mode_group)
+
+        # Examples section
+        examples_label = QLabel("📚 Common Parallel Patterns:")
+        examples_label.setStyleSheet("font-weight: bold; color: #333; margin-top: 8px; font-size: 12px;")
+        layout.addWidget(examples_label)
+
+        for_examples = QLabel("For Loop Mode:")
+        for_examples.setStyleSheet("font-weight: bold; color: #2e7d32; font-size: 11px; margin-top: 4px;")
+        layout.addWidget(for_examples)
+
+        for_text = QLabel("• Process each user in parallel: each='user', in='data.users_list'\n• Validate multiple items: each='item', in='data.validation_items'")
+        for_text.setStyleSheet("color: #666; font-size: 10px; margin-left: 16px;")
+        layout.addWidget(for_text)
+
+        branches_examples = QLabel("Branches Mode:")
+        branches_examples.setStyleSheet("font-weight: bold; color: #1976d2; font-size: 11px; margin-top: 4px;")
+        layout.addWidget(branches_examples)
+
+        branches_text = QLabel("• Independent API calls: Branch 1 gets user data, Branch 2 gets permissions\n• Parallel data processing: Branch 1 processes files, Branch 2 sends notifications")
+        branches_text.setStyleSheet("color: #666; font-size: 10px; margin-left: 16px; margin-bottom: 8px;")
+        layout.addWidget(branches_text)
+
+        return widget
+
     def set_step(self, step, step_index: int):
         """Set the current step to configure."""
         self.current_step = step
@@ -383,6 +1251,18 @@ class StepConfigurationPanel(QStackedWidget):
         elif isinstance(step, ScriptStep):
             self._populate_script_config(step)
             self.setCurrentWidget(self.script_config_widget)
+        elif isinstance(step, SwitchStep):
+            self._populate_switch_config(step)
+            self.setCurrentWidget(self.switch_config_widget)
+        elif isinstance(step, ReturnStep):
+            self._populate_return_config(step)
+            self.setCurrentWidget(self.return_config_widget)
+        elif isinstance(step, TryCatchStep):
+            self._populate_try_catch_config(step)
+            self.setCurrentWidget(self.try_catch_config_widget)
+        elif isinstance(step, ParallelStep):
+            self._populate_parallel_config(step)
+            self.setCurrentWidget(self.parallel_config_widget)
         else:
             self.setCurrentWidget(self.empty_widget)
 
@@ -425,6 +1305,30 @@ class StepConfigurationPanel(QStackedWidget):
         # Populate JSON output
         self.script_json_edit.setPlainText(step.user_provided_json_output or "")
 
+    def _populate_switch_config(self, step: SwitchStep):
+        """Populate the switch configuration form with step data."""
+        self.switch_description_edit.setText(step.description or "")
+        self.switch_output_key_edit.setText(step.output_key or "_")
+
+        # Populate cases list
+        self.switch_cases_list.clear()
+        for i, case in enumerate(step.cases):
+            condition_preview = case.condition[:50] + "..." if len(case.condition) > 50 else case.condition
+            steps_count = len(case.steps)
+            item_text = f"Case {i+1}: {condition_preview} ({steps_count} step(s))"
+            item = QListWidgetItem(item_text)
+            item.setData(Qt.UserRole, i)  # Store case index
+            self.switch_cases_list.addItem(item)
+
+        # Update default case display
+        if step.default_case:
+            steps_count = len(step.default_case.steps)
+            self.default_case_label.setText(f"Default case defined ({steps_count} step(s))")
+            self.default_case_label.setStyleSheet("color: #2e7d32; font-weight: bold;")
+        else:
+            self.default_case_label.setText("No default case defined")
+            self.default_case_label.setStyleSheet("color: #666; font-style: italic;")
+
     def _on_action_data_changed(self):
         """Handle changes to action step data."""
         if not isinstance(self.current_step, ActionStep):
@@ -462,6 +1366,558 @@ class StepConfigurationPanel(QStackedWidget):
                 self.current_step.input_args[key_item.text()] = value_item.text()
 
         self.step_updated.emit()
+
+    def _on_switch_data_changed(self):
+        """Handle changes to switch step data."""
+        if not isinstance(self.current_step, SwitchStep):
+            return
+
+        self.current_step.description = self.switch_description_edit.text() or None
+        self.current_step.output_key = self.switch_output_key_edit.text() or "_"
+
+        self.step_updated.emit()
+
+    def _populate_return_config(self, step: ReturnStep):
+        """Populate the return configuration form with step data."""
+        self.return_description_edit.setText(step.description or "")
+
+        # Populate output mapper table
+        self.return_output_mapper_table.setRowCount(len(step.output_mapper))
+        for i, (key, value) in enumerate(step.output_mapper.items()):
+            self.return_output_mapper_table.setItem(i, 0, QTableWidgetItem(str(key)))
+            self.return_output_mapper_table.setItem(i, 1, QTableWidgetItem(str(value)))
+
+    def _on_return_data_changed(self):
+        """Handle changes to return step data."""
+        if not isinstance(self.current_step, ReturnStep):
+            return
+
+        self.current_step.description = self.return_description_edit.text() or None
+
+        # Update output mapper from table
+        self.current_step.output_mapper = {}
+        for row in range(self.return_output_mapper_table.rowCount()):
+            key_item = self.return_output_mapper_table.item(row, 0)
+            value_item = self.return_output_mapper_table.item(row, 1)
+            if key_item and value_item and key_item.text():
+                self.current_step.output_mapper[key_item.text()] = value_item.text()
+
+        self.step_updated.emit()
+
+    def _add_return_mapping(self):
+        """Add a new row to the return output mapper table."""
+        row_count = self.return_output_mapper_table.rowCount()
+        self.return_output_mapper_table.insertRow(row_count)
+        self.return_output_mapper_table.setItem(row_count, 0, QTableWidgetItem(""))
+        self.return_output_mapper_table.setItem(row_count, 1, QTableWidgetItem(""))
+
+    def _remove_return_mapping(self):
+        """Remove the selected row from the return output mapper table."""
+        current_row = self.return_output_mapper_table.currentRow()
+        if current_row >= 0:
+            self.return_output_mapper_table.removeRow(current_row)
+            self._on_return_data_changed()
+
+    def _show_return_templates(self):
+        """Show return step templates dialog."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QListWidget, QDialogButtonBox, QLabel, QTextEdit
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Return Step Templates")
+        dialog.setModal(True)
+        dialog.resize(600, 500)
+
+        layout = QVBoxLayout(dialog)
+
+        # Header
+        header = QLabel("Choose a template for common return patterns:")
+        header.setStyleSheet("font-weight: bold; font-size: 12px; margin-bottom: 8px;")
+        layout.addWidget(header)
+
+        # Template list
+        template_list = QListWidget()
+
+        # Define templates
+        templates = [
+            {
+                "name": "User Profile Return",
+                "description": "Return basic user profile information",
+                "mappings": {
+                    "user_id": "data.user_info.user.id",
+                    "user_name": "data.user_info.user.name",
+                    "user_email": "data.user_info.user.email",
+                    "department": "meta_info.user.department"
+                }
+            },
+            {
+                "name": "Status Check Return",
+                "description": "Return status and validation results",
+                "mappings": {
+                    "is_valid": "data.validation_result.is_valid",
+                    "status": "data.validation_result.status",
+                    "message": "data.validation_result.message",
+                    "timestamp": "meta_info.request.timestamp"
+                }
+            },
+            {
+                "name": "Data Processing Return",
+                "description": "Return processed data with metadata",
+                "mappings": {
+                    "processed_data": "data.processing_result.data",
+                    "record_count": "data.processing_result.count",
+                    "processing_time": "data.processing_result.duration",
+                    "processed_by": "meta_info.user.email"
+                }
+            },
+            {
+                "name": "Error Handling Return",
+                "description": "Return error information and context",
+                "mappings": {
+                    "error_code": "data.error_info.code",
+                    "error_message": "data.error_info.message",
+                    "error_details": "data.error_info.details",
+                    "user_context": "meta_info.user.id"
+                }
+            }
+        ]
+
+        for template in templates:
+            item_text = f"{template['name']}\n{template['description']}"
+            item = QListWidgetItem(item_text)
+            item.setData(Qt.UserRole, template)
+            template_list.addItem(item)
+
+        layout.addWidget(template_list)
+
+        # Preview area
+        preview_label = QLabel("Template Preview:")
+        preview_label.setStyleSheet("font-weight: bold; margin-top: 8px;")
+        layout.addWidget(preview_label)
+
+        preview_text = QTextEdit()
+        preview_text.setMaximumHeight(150)
+        preview_text.setReadOnly(True)
+        layout.addWidget(preview_text)
+
+        # Update preview when selection changes
+        def update_preview():
+            current_item = template_list.currentItem()
+            if current_item:
+                template = current_item.data(Qt.UserRole)
+                preview_content = "Output Mapper:\n"
+                for key, value in template['mappings'].items():
+                    preview_content += f"  {key} → {value}\n"
+                preview_text.setPlainText(preview_content)
+
+        template_list.currentItemChanged.connect(update_preview)
+
+        # Buttons
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        # Show dialog and apply template if accepted
+        if dialog.exec() == QDialog.Accepted:
+            current_item = template_list.currentItem()
+            if current_item:
+                template = current_item.data(Qt.UserRole)
+                self._apply_return_template(template['mappings'])
+
+    def _apply_return_template(self, mappings):
+        """Apply a template to the return output mapper."""
+        # Clear existing mappings
+        self.return_output_mapper_table.setRowCount(0)
+
+        # Add template mappings
+        for key, value in mappings.items():
+            row = self.return_output_mapper_table.rowCount()
+            self.return_output_mapper_table.insertRow(row)
+            self.return_output_mapper_table.setItem(row, 0, QTableWidgetItem(key))
+            self.return_output_mapper_table.setItem(row, 1, QTableWidgetItem(value))
+
+        # Trigger data change event
+        self._on_return_data_changed()
+
+    # Try/Catch Configuration Methods
+    def _populate_try_catch_config(self, step: TryCatchStep):
+        """Populate the try/catch configuration widget with step data."""
+        self.try_catch_description_edit.setText(step.description or "")
+        self.try_catch_output_key_edit.setText(step.output_key or "")
+
+        # Populate status codes
+        if step.catch_block and step.catch_block.on_status_code:
+            status_codes_str = ",".join(map(str, step.catch_block.on_status_code))
+            self.status_codes_edit.setText(status_codes_str)
+        else:
+            self.status_codes_edit.setText("")
+
+        # Populate try steps
+        self.try_steps_list.clear()
+        if step.try_steps:
+            for try_step in step.try_steps:
+                step_text = self._get_step_display_text(try_step)
+                self.try_steps_list.addItem(step_text)
+
+        # Populate catch steps
+        self.catch_steps_list.clear()
+        if step.catch_block and step.catch_block.steps:
+            for catch_step in step.catch_block.steps:
+                step_text = self._get_step_display_text(catch_step)
+                self.catch_steps_list.addItem(step_text)
+
+    def _get_step_display_text(self, step):
+        """Get display text for a step in lists."""
+        if isinstance(step, ActionStep):
+            return f"Action: {step.action_name or 'Unnamed'}"
+        elif isinstance(step, ScriptStep):
+            return f"Script: {step.description or 'Unnamed'}"
+        elif isinstance(step, ReturnStep):
+            return f"Return: {step.description or 'Unnamed'}"
+        else:
+            return f"{type(step).__name__}: {getattr(step, 'description', 'Unnamed')}"
+
+    def _on_try_catch_data_changed(self):
+        """Handle changes to try/catch configuration data."""
+        if not self.current_step or not isinstance(self.current_step, TryCatchStep):
+            return
+
+        # Update basic properties
+        self.current_step.description = self.try_catch_description_edit.text()
+        self.current_step.output_key = self.try_catch_output_key_edit.text()
+
+        # Update status codes
+        status_codes_text = self.status_codes_edit.text().strip()
+        if status_codes_text:
+            try:
+                status_codes = [int(code.strip()) for code in status_codes_text.split(",") if code.strip()]
+                if not self.current_step.catch_block:
+                    from core_structures import CatchBlock
+                    self.current_step.catch_block = CatchBlock()
+                self.current_step.catch_block.on_status_code = status_codes
+            except ValueError:
+                # Invalid status codes, keep existing or set to empty
+                if self.current_step.catch_block:
+                    self.current_step.catch_block.on_status_code = []
+        else:
+            if self.current_step.catch_block:
+                self.current_step.catch_block.on_status_code = []
+
+        # Emit step updated signal
+        self.step_updated.emit()
+
+    def _add_try_step(self):
+        """Add a new step to the try block."""
+        # This would open a step selection dialog
+        # For now, add a placeholder
+        self.try_steps_list.addItem("New Try Step (configure in step editor)")
+        self._on_try_catch_data_changed()
+
+    def _remove_try_step(self):
+        """Remove the selected step from the try block."""
+        current_row = self.try_steps_list.currentRow()
+        if current_row >= 0:
+            self.try_steps_list.takeItem(current_row)
+            self._on_try_catch_data_changed()
+
+    def _add_catch_step(self):
+        """Add a new step to the catch block."""
+        # This would open a step selection dialog
+        # For now, add a placeholder
+        self.catch_steps_list.addItem("New Catch Step (configure in step editor)")
+        self._on_try_catch_data_changed()
+
+    def _remove_catch_step(self):
+        """Remove the selected step from the catch block."""
+        current_row = self.catch_steps_list.currentRow()
+        if current_row >= 0:
+            self.catch_steps_list.takeItem(current_row)
+            self._on_try_catch_data_changed()
+
+    # Parallel Configuration Methods
+    def _populate_parallel_config(self, step: ParallelStep):
+        """Populate the parallel configuration widget with step data."""
+        self.parallel_description_edit.setText(step.description or "")
+        self.parallel_output_key_edit.setText(step.output_key or "")
+
+        # Determine mode and populate accordingly
+        if step.for_loop:
+            # For loop mode
+            self.parallel_mode_tabs.setCurrentIndex(0)  # For Loop Mode tab
+            self.parallel_each_edit.setText(step.for_loop.each or "")
+            self.parallel_in_source_edit.setText(step.for_loop.in_source or "")
+
+            # Populate for loop steps
+            self.parallel_for_steps_list.clear()
+            if step.for_loop.steps:
+                for for_step in step.for_loop.steps:
+                    step_text = self._get_step_display_text(for_step)
+                    self.parallel_for_steps_list.addItem(step_text)
+        elif step.branches:
+            # Branches mode
+            self.parallel_mode_tabs.setCurrentIndex(1)  # Branches Mode tab
+
+            # Populate branches
+            self.parallel_branches_list.clear()
+            for i, branch in enumerate(step.branches):
+                branch_text = f"Branch {i+1} ({len(branch.steps)} steps)"
+                self.parallel_branches_list.addItem(branch_text)
+
+    def _on_parallel_data_changed(self):
+        """Handle changes to parallel configuration data."""
+        if not self.current_step or not isinstance(self.current_step, ParallelStep):
+            return
+
+        # Update basic properties
+        self.current_step.description = self.parallel_description_edit.text()
+        self.current_step.output_key = self.parallel_output_key_edit.text()
+
+        # Update mode-specific data based on current tab
+        current_mode = self.parallel_mode_tabs.currentIndex()
+        if current_mode == 0:  # For Loop Mode
+            if not self.current_step.for_loop:
+                from core_structures import ParallelForLoop
+                self.current_step.for_loop = ParallelForLoop()
+
+            self.current_step.for_loop.each = self.parallel_each_edit.text()
+            self.current_step.for_loop.in_source = self.parallel_in_source_edit.text()
+
+            # Clear branches mode if switching
+            self.current_step.branches = None
+        elif current_mode == 1:  # Branches Mode
+            # Clear for loop mode if switching
+            self.current_step.for_loop = None
+
+            # Branches are managed through add/remove methods
+
+        # Emit step updated signal
+        self.step_updated.emit()
+
+    def _on_parallel_mode_changed(self, index):
+        """Handle parallel mode tab change."""
+        self._on_parallel_data_changed()
+
+    def _add_parallel_for_step(self):
+        """Add a new step to the parallel for loop."""
+        # This would open a step selection dialog
+        # For now, add a placeholder
+        self.parallel_for_steps_list.addItem("New For Step (configure in step editor)")
+        self._on_parallel_data_changed()
+
+    def _remove_parallel_for_step(self):
+        """Remove the selected step from the parallel for loop."""
+        current_row = self.parallel_for_steps_list.currentRow()
+        if current_row >= 0:
+            self.parallel_for_steps_list.takeItem(current_row)
+            self._on_parallel_data_changed()
+
+    def _add_parallel_branch(self):
+        """Add a new branch to the parallel execution."""
+        # This would open a branch configuration dialog
+        # For now, add a placeholder
+        branch_count = self.parallel_branches_list.count() + 1
+        self.parallel_branches_list.addItem(f"Branch {branch_count} (0 steps)")
+        self._on_parallel_data_changed()
+
+    def _remove_parallel_branch(self):
+        """Remove the selected branch from the parallel execution."""
+        current_row = self.parallel_branches_list.currentRow()
+        if current_row >= 0:
+            self.parallel_branches_list.takeItem(current_row)
+            self._on_parallel_data_changed()
+
+    def _validate_output_key_field(self):
+        """Validate output_key field with real-time feedback."""
+        if not self.current_step:
+            return
+
+        # Import here to avoid circular imports
+        from output_key_validator import output_key_validator
+
+        step_type = type(self.current_step).__name__
+
+        # Get the appropriate output_key field based on step type
+        if isinstance(self.current_step, ActionStep):
+            output_key = self.action_output_key_edit.text()
+            indicator = self.action_output_key_indicator
+            field_edit = self.action_output_key_edit
+        elif isinstance(self.current_step, ScriptStep):
+            output_key = self.script_output_key_edit.text()
+            indicator = self.script_output_key_indicator
+            field_edit = self.script_output_key_edit
+        else:
+            return
+
+        # Validate the output_key
+        result = output_key_validator.validate_output_key(output_key, step_type, self.current_step)
+
+        # Update visual indicators
+        if result.is_valid:
+            indicator.setText("✓")
+            indicator.setStyleSheet("color: green; font-weight: bold;")
+            indicator.setToolTip("Valid output_key")
+            field_edit.setStyleSheet("border: 2px solid #4caf50; background-color: #e8f5e8;")
+        else:
+            indicator.setText("✗")
+            indicator.setStyleSheet("color: red; font-weight: bold;")
+            error_msg = "\n".join(result.errors)
+            suggestions = "\n".join(result.suggestions) if result.suggestions else ""
+            tooltip = f"Validation errors:\n{error_msg}"
+            if suggestions:
+                tooltip += f"\n\nSuggestions:\n{suggestions}"
+            indicator.setToolTip(tooltip)
+            field_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+
+    def _validate_action_name_field(self):
+        """Validate action_name field with real-time feedback."""
+        if not self.current_step or not isinstance(self.current_step, ActionStep):
+            return
+
+        # Import here to avoid circular imports
+        from action_name_validator import action_name_validator
+
+        action_name = self.action_name_edit.text()
+
+        # Validate the action_name
+        result = action_name_validator.validate_action_name(action_name, self.current_step)
+
+        # Update visual indicators
+        if result.is_valid:
+            if result.is_known_action:
+                self.action_name_indicator.setText("✓")
+                self.action_name_indicator.setStyleSheet("color: green; font-weight: bold;")
+                self.action_name_indicator.setToolTip(f"Valid Moveworks action: {action_name}")
+                self.action_name_edit.setStyleSheet("border: 2px solid #4caf50; background-color: #e8f5e8;")
+            else:
+                self.action_name_indicator.setText("?")
+                self.action_name_indicator.setStyleSheet("color: orange; font-weight: bold;")
+                self.action_name_indicator.setToolTip(f"Valid format but not in Moveworks catalog: {action_name}")
+                self.action_name_edit.setStyleSheet("border: 2px solid #ff9800; background-color: #fff3e0;")
+        else:
+            self.action_name_indicator.setText("✗")
+            self.action_name_indicator.setStyleSheet("color: red; font-weight: bold;")
+            error_msg = "\n".join(result.errors)
+            warnings_msg = "\n".join(result.warnings) if result.warnings else ""
+            suggestions = "\n".join(result.suggestions) if result.suggestions else ""
+
+            tooltip = f"Validation errors:\n{error_msg}"
+            if warnings_msg:
+                tooltip += f"\n\nWarnings:\n{warnings_msg}"
+            if suggestions:
+                tooltip += f"\n\nSuggestions:\n{suggestions}"
+
+            self.action_name_indicator.setToolTip(tooltip)
+            self.action_name_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+
+    def _validate_script_code_field(self):
+        """Validate script code field with real-time feedback."""
+        if not self.current_step or not isinstance(self.current_step, ScriptStep):
+            return
+
+        # Get the code from the enhanced script editor
+        code = self.current_step.code if self.current_step.code else ""
+
+        # Validate the code field using compliance validator
+        from compliance_validator import compliance_validator
+        temp_workflow = Workflow(steps=[self.current_step])
+        result = compliance_validator.validate_workflow_compliance(temp_workflow)
+
+        # Check for code field specific errors
+        code_errors = []
+        code_warnings = []
+
+        # Check for mandatory field errors related to code
+        for error in result.mandatory_field_errors:
+            if 'code' in error.lower():
+                code_errors.append(error)
+
+        # Check for APIthon errors
+        for error in result.apiton_errors:
+            if any(keyword in error.lower() for keyword in ['byte', 'private', 'return']):
+                code_errors.append(error)
+
+        # Check for APIthon warnings
+        for warning in result.warnings:
+            if any(keyword in warning.lower() for keyword in ['byte', 'return', 'citation']):
+                code_warnings.append(warning)
+
+        # Update visual indicators
+        if not code_errors:
+            if code_warnings:
+                self.script_code_indicator.setText("⚠")
+                self.script_code_indicator.setStyleSheet("color: orange; font-weight: bold;")
+                warning_msg = "\n".join(code_warnings)
+                self.script_code_indicator.setToolTip(f"Warnings:\n{warning_msg}")
+            else:
+                self.script_code_indicator.setText("✓")
+                self.script_code_indicator.setStyleSheet("color: green; font-weight: bold;")
+                self.script_code_indicator.setToolTip("Valid APIthon code")
+        else:
+            self.script_code_indicator.setText("✗")
+            self.script_code_indicator.setStyleSheet("color: red; font-weight: bold;")
+            error_msg = "\n".join(code_errors)
+            suggestions = "\n".join(result.suggestions) if result.suggestions else ""
+
+            tooltip = f"Validation errors:\n{error_msg}"
+            if suggestions:
+                tooltip += f"\n\nSuggestions:\n{suggestions}"
+
+            self.script_code_indicator.setToolTip(tooltip)
+
+    def _validate_return_output_mapper(self):
+        """Validate return step output_mapper field with real-time feedback."""
+        if not self.current_step or not isinstance(self.current_step, ReturnStep):
+            return
+
+        # Import here to avoid circular imports
+        from compliance_validator import compliance_validator
+
+        # Create a temporary workflow for validation
+        temp_workflow = Workflow(steps=[self.current_step])
+        result = compliance_validator.validate_workflow_compliance(temp_workflow)
+
+        # Check for output_mapper validation errors
+        mapper_errors = []
+        mapper_warnings = []
+
+        # Check for DSL string quoting issues
+        for error in result.errors:
+            if 'output_mapper' in error.lower():
+                mapper_errors.append(error)
+
+        # Check for data reference validation
+        for warning in result.warnings:
+            if 'output_mapper' in warning.lower():
+                mapper_warnings.append(warning)
+
+        # Visual feedback for the table (could be enhanced with cell-level validation)
+        if mapper_errors:
+            self.return_output_mapper_table.setStyleSheet("""
+                QTableWidget {
+                    border: 2px solid #f44336;
+                    background-color: #ffebee;
+                }
+            """)
+            # Set tooltip with errors
+            error_msg = "\n".join(mapper_errors)
+            self.return_output_mapper_table.setToolTip(f"Validation errors:\n{error_msg}")
+        elif mapper_warnings:
+            self.return_output_mapper_table.setStyleSheet("""
+                QTableWidget {
+                    border: 2px solid #ff9800;
+                    background-color: #fff3e0;
+                }
+            """)
+            warning_msg = "\n".join(mapper_warnings)
+            self.return_output_mapper_table.setToolTip(f"Warnings:\n{warning_msg}")
+        else:
+            self.return_output_mapper_table.setStyleSheet("""
+                QTableWidget {
+                    border: 2px solid #4caf50;
+                    background-color: #e8f5e8;
+                }
+            """)
+            self.return_output_mapper_table.setToolTip("Valid output mapper configuration")
 
     def _validate_current_step(self):
         """Validate the current step and provide real-time feedback."""
@@ -519,6 +1975,22 @@ class StepConfigurationPanel(QStackedWidget):
         for error in result.mandatory_field_errors:
             if "output_key" in error.lower():
                 self.script_output_key_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+            elif "code" in error.lower():
+                # Update script code indicator for mandatory field errors
+                self.script_code_indicator.setText("✗")
+                self.script_code_indicator.setStyleSheet("color: red; font-weight: bold;")
+                self.script_code_indicator.setToolTip("Code field is required and cannot be empty")
+
+        # Check for APIthon errors
+        for error in result.apiton_errors:
+            # Update script code indicator for APIthon validation errors
+            self.script_code_indicator.setText("✗")
+            self.script_code_indicator.setStyleSheet("color: red; font-weight: bold;")
+            current_tooltip = self.script_code_indicator.toolTip()
+            if current_tooltip and "Validation errors:" not in current_tooltip:
+                self.script_code_indicator.setToolTip(f"{current_tooltip}\n{error}")
+            else:
+                self.script_code_indicator.setToolTip(f"APIthon validation error: {error}")
 
     def _on_script_validation_updated(self, result: APIthonValidationResult):
         """Handle script validation updates from the enhanced editor."""
@@ -638,6 +2110,126 @@ class StepConfigurationPanel(QStackedWidget):
             self.step_updated.emit()
         except json.JSONDecodeError as e:
             QMessageBox.warning(self, "JSON Error", f"Invalid JSON: {str(e)}")
+
+    def _add_switch_case(self):
+        """Add a new switch case."""
+        if not isinstance(self.current_step, SwitchStep):
+            return
+
+        from switch_case_editor import SwitchCaseEditorDialog
+
+        dialog = SwitchCaseEditorDialog(parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            case = dialog.get_case()
+            if case:
+                self.current_step.cases.append(case)
+                self._populate_switch_config(self.current_step)
+                self.step_updated.emit()
+
+    def _edit_switch_case(self):
+        """Edit the selected switch case."""
+        if not isinstance(self.current_step, SwitchStep):
+            return
+
+        current_row = self.switch_cases_list.currentRow()
+        if current_row < 0 or current_row >= len(self.current_step.cases):
+            QMessageBox.information(self, "No Selection", "Please select a case to edit.")
+            return
+
+        from switch_case_editor import SwitchCaseEditorDialog
+
+        case = self.current_step.cases[current_row]
+        dialog = SwitchCaseEditorDialog(case, parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            updated_case = dialog.get_case()
+            if updated_case:
+                self.current_step.cases[current_row] = updated_case
+                self._populate_switch_config(self.current_step)
+                self.step_updated.emit()
+
+    def _remove_switch_case(self):
+        """Remove the selected switch case."""
+        if not isinstance(self.current_step, SwitchStep):
+            return
+
+        current_row = self.switch_cases_list.currentRow()
+        if current_row < 0 or current_row >= len(self.current_step.cases):
+            QMessageBox.information(self, "No Selection", "Please select a case to remove.")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Confirm Removal",
+            "Are you sure you want to remove this case?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            del self.current_step.cases[current_row]
+            self._populate_switch_config(self.current_step)
+            self.step_updated.emit()
+
+    def _on_switch_case_selected(self, item):
+        """Handle switch case selection."""
+        # This could be used to show case details in the future
+        pass
+
+    def _add_default_case(self):
+        """Add a default case to the switch."""
+        if not isinstance(self.current_step, SwitchStep):
+            return
+
+        from switch_case_editor import DefaultCaseEditorDialog
+
+        dialog = DefaultCaseEditorDialog(self.current_step.default_case, parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            default_case = dialog.get_default_case()
+            if default_case:
+                self.current_step.default_case = default_case
+                self._populate_switch_config(self.current_step)
+                self.step_updated.emit()
+
+    def _edit_default_case(self):
+        """Edit the default case."""
+        if not isinstance(self.current_step, SwitchStep):
+            return
+
+        if not self.current_step.default_case:
+            QMessageBox.information(self, "No Default Case", "No default case is defined. Use 'Add Default Case' first.")
+            return
+
+        from switch_case_editor import DefaultCaseEditorDialog
+
+        dialog = DefaultCaseEditorDialog(self.current_step.default_case, parent=self)
+        if dialog.exec() == QDialog.Accepted:
+            default_case = dialog.get_default_case()
+            if default_case:
+                self.current_step.default_case = default_case
+                self._populate_switch_config(self.current_step)
+                self.step_updated.emit()
+
+    def _remove_default_case(self):
+        """Remove the default case."""
+        if not isinstance(self.current_step, SwitchStep):
+            return
+
+        if not self.current_step.default_case:
+            QMessageBox.information(self, "No Default Case", "No default case is defined.")
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Confirm Removal",
+            "Are you sure you want to remove the default case?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self.current_step.default_case = None
+            self._populate_switch_config(self.current_step)
+            self.step_updated.emit()
 
 
 class JsonVariableSelectionPanel(QWidget):
@@ -1074,6 +2666,32 @@ class YamlPreviewPanel(QWidget):
             # Apply syntax highlighting (basic)
             self._apply_yaml_highlighting(yaml_output)
 
+        except ValueError as e:
+            # Handle validation errors specifically
+            error_str = str(e).lower()
+            if "output_key" in error_str or "action_name" in error_str:
+                error_text = f"❌ YAML Generation Blocked - Missing Required Fields:\n\n{str(e)}\n\n"
+                error_text += "💡 Fix the following issues:\n"
+
+                if "output_key" in error_str:
+                    error_text += "• Add output_key to all ActionStep and ScriptStep instances\n"
+                    error_text += "• Use lowercase_snake_case format (e.g., 'user_info', 'processed_data')\n"
+                    error_text += "• Ensure all output_key values are unique within the workflow\n"
+
+                if "action_name" in error_str:
+                    error_text += "• Add action_name to all ActionStep instances\n"
+                    error_text += "• Use valid Moveworks action names (e.g., 'mw.get_user_by_email')\n"
+                    error_text += "• Or use custom action names with valid characters (letters, numbers, dots, underscores)\n"
+
+                error_text += "\n📝 Example valid values:\n"
+                if "output_key" in error_str:
+                    error_text += "• output_key: user_info, processed_data, api_response\n"
+                if "action_name" in error_str:
+                    error_text += "• action_name: mw.get_user_by_email, mw.create_ticket, custom_action\n"
+
+                self.yaml_text.setPlainText(error_text)
+            else:
+                self.yaml_text.setPlainText(f"❌ Validation Error:\n\n{str(e)}")
         except Exception as e:
             self.yaml_text.setPlainText(f"Error generating YAML:\n{str(e)}")
 
@@ -1490,6 +3108,7 @@ class MainWindow(QMainWindow):
         self.tutorial_manager = TutorialManager(self)
         self.interactive_tutorial_manager = InteractiveTutorialManager(self)
         self.comprehensive_tutorial_manager = TutorialIntegrationManager(self)
+        self.unified_tutorial_manager = UnifiedTutorialManager(self)
 
         # Create central widget and main layout
         central_widget = QWidget()
@@ -1813,6 +3432,23 @@ class MainWindow(QMainWindow):
         examples_layout.addWidget(self.examples_panel)
 
         center_tabs.addTab(examples_tab, "💡 Examples")
+
+        # Bender Function Builder tab
+        bender_tab = QWidget()
+        bender_tab.setStyleSheet("""
+            QWidget {
+                background-color: #f8f8f8;
+            }
+        """)
+        bender_layout = QVBoxLayout(bender_tab)
+        bender_layout.setContentsMargins(8, 8, 8, 8)
+        bender_layout.setSpacing(8)
+
+        self.bender_builder = BenderFunctionBuilder()
+        self.bender_builder.function_built.connect(self._on_bender_function_built)
+        bender_layout.addWidget(self.bender_builder)
+
+        center_tabs.addTab(bender_tab, "🔧 Bender Functions")
 
         return center_tabs
 
@@ -2171,23 +3807,30 @@ class MainWindow(QMainWindow):
         # Tutorial submenu
         tutorials_submenu = tools_menu.addMenu("📚 Tutorials")
 
+        # Unified Tutorial System (NEW - Best of all systems)
+        unified_tutorial_action = QAction("🎓 Interactive Tutorial System", self)
+        unified_tutorial_action.triggered.connect(self._show_unified_tutorials)
+        unified_tutorial_action.setToolTip("Enhanced tutorial system with copy-paste examples and real-time guidance")
+        tutorials_submenu.addAction(unified_tutorial_action)
+
+        tutorials_submenu.addSeparator()
+
+        # Legacy tutorial systems (for compatibility)
+        legacy_submenu = tutorials_submenu.addMenu("📚 Legacy Tutorials")
+
         # Comprehensive Tutorial Series
         comprehensive_tutorial_action = QAction("🚀 Comprehensive Tutorial Series", self)
         comprehensive_tutorial_action.triggered.connect(self._show_comprehensive_tutorials)
         comprehensive_tutorial_action.setToolTip("Complete 5-module tutorial series covering all Moveworks features")
-        tutorials_submenu.addAction(comprehensive_tutorial_action)
-
-        tutorials_submenu.addSeparator()
+        legacy_submenu.addAction(comprehensive_tutorial_action)
 
         interactive_tutorial_action = QAction("🎯 Interactive Basic Workflow", self)
         interactive_tutorial_action.triggered.connect(self._start_interactive_tutorial)
-        tutorials_submenu.addAction(interactive_tutorial_action)
-
-        tutorials_submenu.addSeparator()
+        legacy_submenu.addAction(interactive_tutorial_action)
 
         all_tutorials_action = QAction("📖 All Tutorials...", self)
         all_tutorials_action.triggered.connect(self._show_tutorials)
-        tutorials_submenu.addAction(all_tutorials_action)
+        legacy_submenu.addAction(all_tutorials_action)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -2625,10 +4268,35 @@ class MainWindow(QMainWindow):
 
                 if result.is_valid:
                     QMessageBox.information(self, "Export Successful", f"✅ YAML exported successfully to:\n{filename}\n\nAll compliance checks passed!")
+            except ValueError as e:
+                # Handle validation errors specifically
+                error_str = str(e).lower()
+                if "output_key" in error_str or "action_name" in error_str:
+                    error_msg = "❌ Export Failed - Missing Required Fields\n\n"
+                    error_msg += str(e) + "\n\n"
+                    error_msg += "Please fix the following before exporting:\n"
+
+                    if "output_key" in error_str:
+                        error_msg += "• Add output_key to all ActionStep and ScriptStep instances\n"
+                        error_msg += "• Use lowercase_snake_case format\n"
+                        error_msg += "• Ensure all output_key values are unique\n"
+
+                    if "action_name" in error_str:
+                        error_msg += "• Add action_name to all ActionStep instances\n"
+                        error_msg += "• Use valid Moveworks action names or custom action names\n"
+                        error_msg += "• Ensure action names contain only valid characters\n"
+
+                    QMessageBox.critical(self, "Export Failed", error_msg)
                 else:
-                    QMessageBox.warning(self, "Export Completed with Issues", f"⚠️ YAML exported to:\n{filename}\n\nWarning: Compliance issues detected. Please review before using in production.")
+                    QMessageBox.critical(self, "Export Failed", f"Validation Error:\n\n{str(e)}")
+                return
             except Exception as e:
                 QMessageBox.critical(self, "Export Failed", f"Failed to export YAML:\n{str(e)}")
+                return
+
+            # Handle validation results after successful YAML generation
+            if not result.is_valid:
+                QMessageBox.warning(self, "Export Completed with Issues", f"⚠️ YAML exported to:\n{filename}\n\nWarning: Compliance issues detected. Please review before using in production.")
 
     def _show_help(self):
         """Show the help dialog."""
@@ -2685,6 +4353,31 @@ class MainWindow(QMainWindow):
             self.config_panel.set_step(step, current_row)
             self._on_step_updated()
 
+    def _on_bender_function_built(self, expression: str):
+        """Handle when a Bender function expression is built."""
+        # Try to insert the expression into the currently focused input field
+        focused_widget = QApplication.focusWidget()
+
+        if isinstance(focused_widget, QLineEdit):
+            # Insert at cursor position in line edit
+            cursor_pos = focused_widget.cursorPosition()
+            current_text = focused_widget.text()
+            new_text = current_text[:cursor_pos] + expression + current_text[cursor_pos:]
+            focused_widget.setText(new_text)
+            focused_widget.setCursorPosition(cursor_pos + len(expression))
+        elif isinstance(focused_widget, QTextEdit):
+            # Insert at cursor position in text edit
+            cursor = focused_widget.textCursor()
+            cursor.insertText(expression)
+        else:
+            # Show a message with the expression to copy
+            QMessageBox.information(
+                self,
+                "Bender Function Built",
+                f"Copy this expression to use in your workflow:\n\n{expression}",
+                QMessageBox.Ok
+            )
+
     def _show_template_library(self):
         """Show the template library dialog."""
         dialog = TemplateBrowserDialog(self)
@@ -2718,9 +4411,14 @@ class MainWindow(QMainWindow):
         """Show the tutorial selection dialog."""
         self.tutorial_manager.show_tutorial_dialog()
 
+    def _show_unified_tutorials(self):
+        """Show the unified tutorial system."""
+        self.unified_tutorial_manager.show_tutorial_selection()
+
     def _show_comprehensive_tutorials(self):
         """Show the comprehensive tutorial series selection."""
-        self.comprehensive_tutorial_manager.show_tutorial_selection()
+        # Use the basic tutorial manager's overlay approach instead of dialog approach
+        self.tutorial_manager.show_tutorial_dialog()
 
     def _new_workflow(self):
         """Create a new workflow."""

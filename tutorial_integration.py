@@ -21,7 +21,8 @@ class TutorialSelectionWidget(QWidget):
     def __init__(self, tutorial_system: ComprehensiveTutorialSystem, parent=None):
         super().__init__(parent)
         self.tutorial_system = tutorial_system
-        self.setFixedSize(600, 400)
+        self.setMinimumSize(800, 550)
+        self.resize(900, 650)
         self.setWindowTitle("Moveworks YAML Assistant - Tutorial Selection")
         
         self._setup_ui()

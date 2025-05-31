@@ -144,6 +144,273 @@ class TutorialHighlight(QWidget):
         painter.drawRoundedRect(self.rect(), 8, 8)
 
 
+class ComprehensiveTutorialOverlay(QWidget):
+    """Overlay widget that highlights tutorial targets and shows instructions (like basic tutorial system)."""
+
+    next_step = Signal()
+    previous_step = Signal()
+    skip_tutorial = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setStyleSheet("background: transparent;")
+
+        self.current_step = None
+        self.target_widget = None
+        self.target_rect = QRect()
+
+        # Create instruction panel (similar to basic tutorial system)
+        self.instruction_panel = QWidget(self)
+        self.instruction_panel.setMinimumSize(450, 300)
+        self.instruction_panel.setMaximumSize(650, 550)
+        self.instruction_panel.setStyleSheet("""
+            QWidget {
+                background-color: rgba(255, 255, 255, 0.98);
+                border: 3px solid #2196F3;
+                border-radius: 12px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            }
+            QLabel {
+                color: #2c3e50;
+                font-size: 14px;
+                line-height: 1.4;
+            }
+            QPushButton {
+                background-color: #3498db;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
+                font-size: 13px;
+                font-weight: 600;
+                min-height: 25px;
+                min-width: 90px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
+
+        self._setup_instruction_panel()
+
+    def _setup_instruction_panel(self):
+        """Setup the instruction panel layout."""
+        panel_layout = QVBoxLayout(self.instruction_panel)
+        panel_layout.setContentsMargins(25, 25, 25, 25)
+        panel_layout.setSpacing(15)
+
+        # Header with progress
+        header_layout = QHBoxLayout()
+        self.step_indicator = QLabel("Step 1 of 10")
+        self.step_indicator.setStyleSheet("""
+            font-weight: bold;
+            font-size: 14px;
+            color: #1976D2;
+        """)
+        header_layout.addWidget(self.step_indicator)
+        header_layout.addStretch()
+        panel_layout.addLayout(header_layout)
+
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimumHeight(8)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: none;
+                border-radius: 4px;
+                background-color: #ecf0f1;
+            }
+            QProgressBar::chunk {
+                background-color: #3498db;
+                border-radius: 4px;
+            }
+        """)
+        panel_layout.addWidget(self.progress_bar)
+
+        # Step title
+        self.step_title = QLabel()
+        self.step_title.setStyleSheet("""
+            font-weight: bold;
+            font-size: 18px;
+            color: #1976D2;
+            margin: 10px 0px 5px 0px;
+        """)
+        self.step_title.setWordWrap(True)
+        panel_layout.addWidget(self.step_title)
+
+        # Step instruction
+        self.step_instruction = QTextEdit()
+        self.step_instruction.setReadOnly(True)
+        self.step_instruction.setMinimumHeight(120)
+        self.step_instruction.setMaximumHeight(180)
+        self.step_instruction.setStyleSheet("""
+            QTextEdit {
+                border: 2px solid #dee2e6;
+                border-radius: 6px;
+                background-color: #f8f9fa;
+                color: #2c3e50;
+                font-size: 14px;
+                padding: 12px;
+                line-height: 1.5;
+            }
+        """)
+        panel_layout.addWidget(self.step_instruction)
+
+        # Add stretch to push buttons to bottom
+        panel_layout.addStretch()
+
+        # Action buttons
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(12)
+        button_layout.setContentsMargins(0, 15, 0, 0)
+
+        self.skip_button = QPushButton("Skip Tutorial")
+        self.skip_button.clicked.connect(self.skip_tutorial.emit)
+        self.skip_button.setMinimumSize(120, 40)
+        self.skip_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f8f9fa;
+                color: #495057;
+                border: 2px solid #6c757d;
+                border-radius: 6px;
+                padding: 10px 16px;
+                font-weight: 600;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #6c757d;
+                color: #ffffff;
+            }
+        """)
+        button_layout.addWidget(self.skip_button)
+
+        button_layout.addStretch()
+
+        self.previous_button = QPushButton("← Previous")
+        self.previous_button.clicked.connect(self.previous_step.emit)
+        self.previous_button.setMinimumSize(100, 40)
+        self.previous_button.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #5a6268;
+            }
+            QPushButton:disabled {
+                background-color: #adb5bd;
+            }
+        """)
+        button_layout.addWidget(self.previous_button)
+
+        self.next_button = QPushButton("Next →")
+        self.next_button.clicked.connect(self.next_step.emit)
+        self.next_button.setDefault(True)
+        self.next_button.setMinimumSize(100, 40)
+        self.next_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        button_layout.addWidget(self.next_button)
+
+        panel_layout.addLayout(button_layout)
+
+    def show_step(self, step: TutorialStep, step_number: int, total_steps: int, target_widget: QWidget = None):
+        """Show a tutorial step with optional target highlighting."""
+        self.current_step = step
+        self.target_widget = target_widget
+
+        # Update UI elements
+        self.step_indicator.setText(f"Step {step_number} of {total_steps}")
+        self.progress_bar.setValue(int((step_number / total_steps) * 100))
+        self.step_title.setText(step.title)
+        self.step_instruction.setHtml(f"<p>{step.instruction}</p>")
+
+        # Update button states
+        self.previous_button.setEnabled(step_number > 1)
+        if step_number == total_steps:
+            self.next_button.setText("Finish")
+        else:
+            self.next_button.setText("Next →")
+
+        # Position overlay to cover parent
+        if self.parent():
+            self.setGeometry(self.parent().rect())
+
+        # Calculate target rectangle
+        if target_widget:
+            self.target_rect = target_widget.geometry()
+            if target_widget.parent():
+                # Convert to global coordinates
+                global_pos = target_widget.parent().mapToGlobal(self.target_rect.topLeft())
+                local_pos = self.mapFromGlobal(global_pos)
+                self.target_rect.moveTo(local_pos)
+        else:
+            self.target_rect = QRect()
+
+        # Position instruction panel
+        self._position_instruction_panel()
+
+        # Show overlay
+        self.show()
+        self.raise_()
+
+    def _position_instruction_panel(self):
+        """Position the instruction panel relative to the target."""
+        panel_size = self.instruction_panel.sizeHint()
+
+        if self.target_rect.isValid():
+            # Position panel to the right of target, or below if no space
+            x = self.target_rect.right() + 20
+            y = self.target_rect.top()
+
+            # Check if panel fits on the right
+            if x + panel_size.width() > self.width():
+                # Position below target
+                x = self.target_rect.left()
+                y = self.target_rect.bottom() + 20
+
+                # Check if panel fits below
+                if y + panel_size.height() > self.height():
+                    # Position above target
+                    y = self.target_rect.top() - panel_size.height() - 20
+        else:
+            # Center panel if no target
+            x = (self.width() - panel_size.width()) // 2
+            y = (self.height() - panel_size.height()) // 2
+
+        self.instruction_panel.move(max(10, x), max(10, y))
+        self.instruction_panel.resize(panel_size)
+
+    def paintEvent(self, event):
+        """Paint the overlay with target highlighting."""
+        painter = QPainter(self)
+
+        # Draw semi-transparent overlay
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 100))
+
+        # Highlight target area
+        if self.target_rect.isValid():
+            # Clear the target area
+            painter.setCompositionMode(QPainter.CompositionMode_Clear)
+            painter.fillRect(self.target_rect, QColor(0, 0, 0, 0))
+
+            # Draw highlight border
+            painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+            painter.setPen(QColor(33, 150, 243, 200))  # Blue highlight
+            painter.drawRect(self.target_rect.adjusted(-2, -2, 2, 2))
+
+
 class TutorialStepDialog(QDialog):
     """Dialog for displaying tutorial step instructions."""
     
@@ -154,7 +421,8 @@ class TutorialStepDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Tutorial")
-        self.setFixedSize(400, 300)
+        self.setMinimumSize(500, 400)
+        self.resize(600, 500)
         self.setWindowFlags(Qt.Dialog | Qt.WindowStaysOnTopHint)
         
         self._setup_ui()
@@ -163,53 +431,99 @@ class TutorialStepDialog(QDialog):
     def _setup_ui(self):
         """Set up the dialog UI."""
         layout = QVBoxLayout(self)
-        
+        layout.setContentsMargins(25, 25, 25, 25)
+        layout.setSpacing(15)
+
         # Header
         self.title_label = QLabel()
-        self.title_label.setFont(QFont("Arial", 14, QFont.Bold))
-        self.title_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
-        
+        self.title_label.setFont(QFont("Arial", 16, QFont.Bold))
+        self.title_label.setStyleSheet("""
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding: 10px 0px;
+        """)
+
         # Progress
         self.progress_label = QLabel()
+        self.progress_label.setStyleSheet("color: #2c3e50; font-size: 14px; margin-bottom: 5px;")
         self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimumHeight(25)
         self.progress_bar.setStyleSheet("""
             QProgressBar {
                 border: 2px solid #bdc3c7;
                 border-radius: 5px;
                 text-align: center;
+                font-size: 12px;
+                color: #2c3e50;
             }
             QProgressBar::chunk {
                 background-color: #3498db;
                 border-radius: 3px;
             }
         """)
-        
+
         # Content
         self.instruction_text = QTextEdit()
         self.instruction_text.setReadOnly(True)
-        self.instruction_text.setMaximumHeight(150)
+        self.instruction_text.setMinimumHeight(200)
+        self.instruction_text.setMaximumHeight(280)
         
         # Controls
         controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(15)
+        controls_layout.setContentsMargins(0, 20, 0, 0)
+
         self.skip_btn = QPushButton("Skip Tutorial")
         self.previous_btn = QPushButton("Previous")
         self.next_btn = QPushButton("Next")
-        
-        self.skip_btn.setStyleSheet("color: #e74c3c;")
+
+        # Set minimum button sizes
+        self.skip_btn.setMinimumSize(120, 35)
+        self.previous_btn.setMinimumSize(100, 35)
+        self.next_btn.setMinimumSize(100, 35)
+
+        self.skip_btn.setStyleSheet("""
+            QPushButton {
+                color: #e74c3c;
+                background-color: #ffffff;
+                border: 2px solid #e74c3c;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background-color: #fdf2f2;
+            }
+        """)
         self.next_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3498db;
                 color: white;
                 border: none;
                 padding: 8px 16px;
-                border-radius: 4px;
+                border-radius: 6px;
                 font-weight: bold;
+                font-size: 13px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
             }
         """)
-        
+        self.previous_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #95a5a6;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #7f8c8d;
+            }
+        """)
+
         controls_layout.addWidget(self.skip_btn)
         controls_layout.addStretch()
         controls_layout.addWidget(self.previous_btn)
@@ -262,8 +576,9 @@ class ComprehensiveTutorialSystem:
         self.current_tutorial: Optional[Tutorial] = None
         self.current_step_index: int = 0
         self.step_dialog: Optional[TutorialStepDialog] = None
+        self.tutorial_overlay: Optional[ComprehensiveTutorialOverlay] = None
         self.highlight_overlay: Optional[TutorialHighlight] = None
-        
+
         self._initialize_tutorials()
     
     def _initialize_tutorials(self):
@@ -1022,16 +1337,16 @@ return report"""
         """Start a specific tutorial."""
         if tutorial_id not in self.tutorials:
             return False
-        
+
         self.current_tutorial = self.tutorials[tutorial_id]
         self.current_step_index = 0
-        
-        # Create step dialog
-        self.step_dialog = TutorialStepDialog(self.main_window)
-        self.step_dialog.next_step.connect(self._next_step)
-        self.step_dialog.previous_step.connect(self._previous_step)
-        self.step_dialog.skip_tutorial.connect(self._skip_tutorial)
-        
+
+        # Create overlay instead of dialog (like basic tutorial system)
+        self.tutorial_overlay = ComprehensiveTutorialOverlay(self.main_window)
+        self.tutorial_overlay.next_step.connect(self._next_step)
+        self.tutorial_overlay.previous_step.connect(self._previous_step)
+        self.tutorial_overlay.skip_tutorial.connect(self._skip_tutorial)
+
         # Start first step
         self._show_current_step()
         return True
@@ -1039,29 +1354,56 @@ return report"""
     def _show_current_step(self):
         """Display the current tutorial step."""
         if not self.current_tutorial or self.current_step_index >= len(self.current_tutorial.steps):
+            self._complete_tutorial()
             return
-        
+
         step = self.current_tutorial.steps[self.current_step_index]
-        
-        # Update step dialog
-        self.step_dialog.update_step(
+
+        # Find target widget for highlighting
+        target_widget = self._find_target_widget(step.target_element)
+
+        # Show step using overlay (like basic tutorial system)
+        self.tutorial_overlay.show_step(
             step,
             self.current_step_index + 1,
-            len(self.current_tutorial.steps)
+            len(self.current_tutorial.steps),
+            target_widget
         )
-        self.step_dialog.show()
-        
-        # Add highlight if target specified
-        if step.target_element:
-            self._highlight_target(step.target_element, step.highlight_color)
     
+    def _find_target_widget(self, target_element: Optional[str]) -> Optional[QWidget]:
+        """Find the target widget for highlighting."""
+        if not target_element:
+            return None
+
+        # Map target element names to actual widgets (similar to basic tutorial system)
+        widget_map = {
+            "compound_action_name_field": getattr(self.main_window, 'action_name_edit', None),
+            "yaml_preview_panel": getattr(self.main_window, 'yaml_panel', None),
+            "add_action_button": getattr(self.main_window, 'add_action_btn', None),
+            "add_script_button": getattr(self.main_window, 'add_script_btn', None),
+            "add_switch_button": getattr(self.main_window, 'add_switch_btn', None),
+            "add_try_catch_button": getattr(self.main_window, 'add_try_catch_btn', None),
+            "action_config_panel": getattr(self.main_window, 'config_panel', None),
+            "json_path_selector_button": getattr(self.main_window, 'enhanced_json_panel', None),
+            "validate_button": getattr(self.main_window, 'validate_btn', None),
+            "template_library_button": None,  # Will be found by object name
+        }
+
+        # First try the widget map
+        widget = widget_map.get(target_element)
+        if widget:
+            return widget
+
+        # Fallback to finding by object name
+        return self.main_window.findChild(QWidget, target_element)
+
     def _highlight_target(self, target_element: str, color: str):
         """Highlight the target UI element."""
         # Remove existing highlight
         if self.highlight_overlay:
             self.highlight_overlay.close()
             self.highlight_overlay = None
-        
+
         # Find target widget
         target_widget = self.main_window.findChild(QWidget, target_element)
         if target_widget:
@@ -1105,14 +1447,18 @@ return report"""
     
     def _cleanup_tutorial(self):
         """Clean up tutorial resources."""
+        if self.tutorial_overlay:
+            self.tutorial_overlay.hide()
+            self.tutorial_overlay = None
+
         if self.step_dialog:
             self.step_dialog.close()
             self.step_dialog = None
-        
+
         if self.highlight_overlay:
             self.highlight_overlay.close()
             self.highlight_overlay = None
-        
+
         self.current_tutorial = None
         self.current_step_index = 0
 

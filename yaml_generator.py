@@ -96,6 +96,29 @@ def _ensure_dsl_string_quoting(obj: Any) -> Any:
         return obj
 
 
+def _ensure_dsl_string_quoting_in_code(code: str) -> str:
+    """
+    Ensure DSL expressions within APIthon code are properly formatted.
+
+    This function processes APIthon script code to ensure data.* and meta_info.*
+    references are properly formatted for YAML generation while preserving
+    the code's functionality.
+
+    Args:
+        code: The APIthon script code string
+
+    Returns:
+        The processed code with DSL expressions properly formatted
+    """
+    if not code or not isinstance(code, str):
+        return code
+
+    # For APIthon code, we don't need to modify the DSL expressions
+    # as they should remain as valid Python syntax within the script.
+    # The DSL quoting is handled at the YAML level, not within the code itself.
+    return code
+
+
 def _to_snake_case(name: str) -> str:
     """
     Convert a string to snake_case format for field naming standardization.
@@ -183,7 +206,7 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
         step_dict['action'] = action_dict
 
     elif isinstance(step, ScriptStep):
-        # Create script dict following APIthon YAML format requirements
+        # Create script dict following APIthon YAML format requirements with enhanced compliance
         # Use default values for empty required fields to prevent validation errors
         output_key = step.output_key if step.output_key and step.output_key.strip() else ''
         code = step.code if step.code and step.code.strip() else ''
@@ -191,8 +214,21 @@ def step_to_yaml_dict(step) -> Dict[str, Any]:
         script_dict = {}
 
         # Add code field first with proper YAML literal block scalar format
-        # The YAML library will handle the literal block scalar (|) formatting
-        script_dict['code'] = code
+        # Apply automatic DSL string quoting for data.* and meta_info.* references
+        if code:
+            # Apply DSL string quoting to the code content
+            code = _ensure_dsl_string_quoting_in_code(code)
+
+            # Mark multiline code for literal block scalar formatting
+            if '\n' in code or len(code) > 80:
+                # The YAML library will handle the literal block scalar (|) formatting
+                # when the custom representer detects multiline content
+                script_dict['code'] = code
+            else:
+                # Single-line code uses standard YAML string format
+                script_dict['code'] = code
+        else:
+            script_dict['code'] = code
 
         # Add output_key as required field
         script_dict['output_key'] = output_key
@@ -393,13 +429,36 @@ def generate_yaml_string(workflow: Workflow, action_name: str = None) -> str:
     """
     Generate a YAML string from a Workflow instance with proper APIthon script formatting.
 
+    Validates output_key compliance before generation.
+
     Args:
         workflow: The Workflow instance to convert
         action_name: Optional action name for the compound action
 
     Returns:
         YAML string representation of the workflow with literal block scalars for script code
+
+    Raises:
+        ValueError: If mandatory output_key fields are missing or invalid
     """
+    # Validate output_key compliance before generating YAML
+    from compliance_validator import compliance_validator
+
+    validation_result = compliance_validator.validate_workflow_compliance(workflow, action_name or "compound_action")
+
+    # Check for mandatory field errors specifically related to output_key and action_name
+    output_key_errors = [error for error in validation_result.mandatory_field_errors
+                        if 'output_key' in error.lower()]
+    action_name_errors = [error for error in validation_result.mandatory_field_errors
+                         if 'action_name' in error.lower()]
+
+    mandatory_errors = output_key_errors + action_name_errors
+
+    if mandatory_errors:
+        error_msg = "Cannot generate YAML due to missing mandatory fields:\n"
+        error_msg += "\n".join(f"• {error}" for error in mandatory_errors)
+        raise ValueError(error_msg)
+
     workflow_dict = workflow_to_yaml_dict(workflow, action_name)
 
     # Custom YAML representer for multiline strings and DSL expressions

@@ -47,8 +47,8 @@ class TutorialOverlay(QWidget):
 
         # Create instruction panel with better sizing
         self.instruction_panel = QFrame(self)
-        self.instruction_panel.setMinimumSize(350, 200)
-        self.instruction_panel.setMaximumSize(500, 400)
+        self.instruction_panel.setMinimumSize(400, 250)
+        self.instruction_panel.setMaximumSize(600, 500)
         self.instruction_panel.setStyleSheet("""
             QFrame {
                 background-color: rgba(255, 255, 255, 0.98);
@@ -82,8 +82,8 @@ class TutorialOverlay(QWidget):
         """)
 
         panel_layout = QVBoxLayout(self.instruction_panel)
-        panel_layout.setContentsMargins(15, 15, 15, 15)
-        panel_layout.setSpacing(12)
+        panel_layout.setContentsMargins(20, 20, 20, 20)
+        panel_layout.setSpacing(15)
 
         # Step title
         self.step_title = QLabel()
@@ -112,10 +112,12 @@ class TutorialOverlay(QWidget):
 
         # Action buttons
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(8)
+        button_layout.setSpacing(12)
+        button_layout.setContentsMargins(0, 10, 0, 0)
 
         self.skip_button = QPushButton("Skip")
         self.skip_button.clicked.connect(self.step_completed.emit)
+        self.skip_button.setMinimumSize(80, 35)
         button_layout.addWidget(self.skip_button)
 
         button_layout.addStretch()  # Push buttons apart
@@ -123,14 +125,23 @@ class TutorialOverlay(QWidget):
         self.next_button = QPushButton("Next")
         self.next_button.clicked.connect(self.step_completed.emit)
         self.next_button.setDefault(True)
+        self.next_button.setMinimumSize(80, 35)
         button_layout.addWidget(self.next_button)
 
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.clicked.connect(self.tutorial_cancelled.emit)
+        self.cancel_button.setMinimumSize(80, 35)
         self.cancel_button.setStyleSheet("""
             QPushButton {
                 background-color: #e74c3c;
                 color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 600;
+                min-height: 20px;
+                min-width: 80px;
             }
             QPushButton:hover {
                 background-color: #c0392b;
@@ -236,9 +247,9 @@ class TutorialDialog(QDialog):
         self.setWindowTitle("Interactive Tutorials")
         self.setModal(True)
 
-        # Set minimum size and make it resizable
-        self.setMinimumSize(700, 500)
-        self.resize(800, 600)
+        # Set larger minimum size and make it resizable
+        self.setMinimumSize(900, 650)
+        self.resize(1000, 750)
 
         # Apply enhanced styling for better readability
         self.setStyleSheet("""
@@ -311,50 +322,58 @@ class TutorialDialog(QDialog):
     def _setup_ui(self):
         """Setup the tutorial selection UI."""
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
 
         # Header
         header_label = QLabel("Choose a Tutorial")
         header_label.setStyleSheet("""
-            font-size: 18px;
+            font-size: 22px;
             font-weight: bold;
             color: #2c3e50;
-            margin-bottom: 15px;
-            padding: 10px 0px;
+            margin-bottom: 20px;
+            padding: 15px 0px;
         """)
         layout.addWidget(header_label)
 
         # Tutorial list with better sizing
         self.tutorial_list = QListWidget()
         self.tutorial_list.itemDoubleClicked.connect(self._start_selected_tutorial)
-        self.tutorial_list.setMinimumHeight(200)
+        self.tutorial_list.setMinimumHeight(280)
         layout.addWidget(self.tutorial_list)
 
         # Tutorial description with better sizing
-        description_label = QLabel("Tutorial Description:")
-        description_label.setStyleSheet("font-weight: bold; color: #2c3e50; margin-top: 10px;")
+        description_label = QLabel("Tutorial Details:")
+        description_label.setStyleSheet("""
+            font-weight: bold;
+            color: #2c3e50;
+            margin-top: 15px;
+            font-size: 16px;
+        """)
         layout.addWidget(description_label)
 
         self.description_text = QTextEdit()
-        self.description_text.setMinimumHeight(120)
-        self.description_text.setMaximumHeight(180)
+        self.description_text.setMinimumHeight(180)
+        self.description_text.setMaximumHeight(250)
         self.description_text.setReadOnly(True)
         self.description_text.setPlaceholderText("Select a tutorial to see its description...")
         layout.addWidget(self.description_text)
 
         # Buttons with better spacing
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(10)
+        button_layout.setSpacing(15)
+        button_layout.setContentsMargins(0, 20, 0, 0)
         button_layout.addStretch()  # Push buttons to the right
 
         start_button = QPushButton("Start Tutorial")
         start_button.clicked.connect(self._start_selected_tutorial)
         start_button.setDefault(True)  # Make it the default button
+        start_button.setMinimumSize(140, 40)
         button_layout.addWidget(start_button)
 
         cancel_button = QPushButton("Cancel")
         cancel_button.clicked.connect(self.reject)
+        cancel_button.setMinimumSize(100, 40)
         button_layout.addWidget(cancel_button)
 
         layout.addLayout(button_layout)
@@ -460,9 +479,132 @@ class TutorialDialog(QDialog):
             ]
         }
 
+        # Comprehensive Tutorial Series (Module-based)
+        module_1_tutorial = {
+            "id": "module_1_basic_compound_action",
+            "title": "Module 1: Your First Compound Action",
+            "description": "Learn to create basic compound actions with lookup and notification",
+            "difficulty": "Beginner",
+            "estimated_time": "15 minutes",
+            "steps": [
+                TutorialStep(
+                    title="Welcome to Compound Actions",
+                    description="Welcome! This tutorial teaches you to create Moveworks compound actions. We'll build an employee onboarding notification system that demonstrates data lookup and notification patterns. Click 'Next' to begin.",
+                    auto_advance=False
+                ),
+                TutorialStep(
+                    title="Set Compound Action Name",
+                    description="In the 'Compound Action Name' field at the top, enter 'employee_welcome_notification'. This becomes the top-level action_name in your YAML.",
+                    target_element="compound_action_name_field"
+                ),
+                TutorialStep(
+                    title="Add First Action Step",
+                    description="Click 'Add Action Step' to create your first workflow step. This will look up user information by email.",
+                    target_element="add_action_button"
+                ),
+                TutorialStep(
+                    title="Configure User Lookup Action",
+                    description="Set Action Name: 'mw.get_user_by_email', Output Key: 'user_info'. In Input Args, add key 'email' with value 'data.input_email'.",
+                    target_element="action_config_panel"
+                ),
+                TutorialStep(
+                    title="Add Sample JSON Output",
+                    description="In the 'User Provided JSON Output' field, add sample user data. This enables the JSON Path Selector for subsequent steps.",
+                    target_element="json_output_field"
+                ),
+                TutorialStep(
+                    title="Open JSON Path Selector",
+                    description="Click the 'JSON Explorer' tab to open the data explorer. Select 'Step 1: user_info' to see available data paths like data.user_info.user.manager.email.",
+                    target_element="json_path_selector_button"
+                ),
+                TutorialStep(
+                    title="Add Notification Action",
+                    description="Add another Action Step with Action Name: 'mw.send_notification', Output Key: 'notification_result'. Use the JSON Path Selector to set recipient to manager's email.",
+                    target_element="add_action_button"
+                ),
+                TutorialStep(
+                    title="Validate Compliance",
+                    description="Click 'Validate' to ensure your workflow meets all Moveworks requirements. Look for green validation status and proper DSL string quoting.",
+                    target_element="validate_button"
+                ),
+                TutorialStep(
+                    title="Review Generated YAML",
+                    description="Check the YAML Preview panel. Notice the mandatory compound action structure with action_name at top level and steps array containing your workflow logic.",
+                    target_element="yaml_preview_panel"
+                ),
+                TutorialStep(
+                    title="Module 1 Complete!",
+                    description="Congratulations! You've created your first Moveworks compound action with proper data flow and validation. Ready for Module 2: IT Automation?",
+                    auto_advance=False
+                )
+            ]
+        }
+
+        module_2_tutorial = {
+            "id": "module_2_it_automation",
+            "title": "Module 2: IT Automation",
+            "description": "ServiceNow/Jira ticket creation with HTTP requests and parameterization",
+            "difficulty": "Intermediate",
+            "estimated_time": "20 minutes",
+            "steps": [
+                TutorialStep(
+                    title="Welcome to IT Automation",
+                    description="Welcome to Module 2! We'll build an automated incident response system that creates tickets in both ServiceNow and Jira when critical alerts are triggered. This demonstrates enterprise IT automation with multiple system integration.",
+                    auto_advance=False
+                ),
+                TutorialStep(
+                    title="Set Compound Action Name",
+                    description="Set the compound action name to 'critical_alert_incident_response'. This workflow will handle critical system alerts automatically.",
+                    target_element="compound_action_name_field"
+                ),
+                TutorialStep(
+                    title="Add ServiceNow HTTP Request",
+                    description="Click 'Add Action Step' to create an HTTP request for ServiceNow incident creation. We'll configure this as an API call.",
+                    target_element="add_action_button"
+                ),
+                TutorialStep(
+                    title="Configure ServiceNow Action",
+                    description="Configure the ServiceNow action with parameterized values: Action Name: 'http_request', Output Key: 'servicenow_incident'. Use {{{SERVICENOW_TOKEN}}} for authentication and {{{ALERT_TITLE}}} for dynamic content.",
+                    target_element="action_config_panel"
+                ),
+                TutorialStep(
+                    title="Add Sample ServiceNow Response",
+                    description="Add sample JSON output showing a ServiceNow incident response. This enables the JSON Path Selector for linking to subsequent steps.",
+                    target_element="json_output_field"
+                ),
+                TutorialStep(
+                    title="Use Template Library for Jira",
+                    description="Click 'Templates' → 'IT Automation' → 'Jira Issue Creation' to add a pre-configured Jira integration step. Templates provide tested patterns for common scenarios.",
+                    target_element="template_library_button"
+                ),
+                TutorialStep(
+                    title="Link ServiceNow and Jira Data",
+                    description="Use the JSON Path Selector to reference ServiceNow data in the Jira step. Set the Jira description to include 'data.servicenow_incident.result.number' for cross-system tracking.",
+                    target_element="json_path_selector_button"
+                ),
+                TutorialStep(
+                    title="Add Notification Step",
+                    description="Add a final Slack notification step that includes both ServiceNow and Jira references. Use template formatting for consistent messaging across your organization.",
+                    target_element="add_action_button"
+                ),
+                TutorialStep(
+                    title="Validate Multi-System Workflow",
+                    description="Run validation to check parameterization, data references, and API configurations. Look for proper {{{VARIABLE}}} usage and correct data.* references.",
+                    target_element="validate_button"
+                ),
+                TutorialStep(
+                    title="Module 2 Complete!",
+                    description="Excellent! You've built an enterprise-grade IT automation workflow with multi-system integration, parameterization, and proper error handling. Ready for Module 3: Conditional Logic?",
+                    auto_advance=False
+                )
+            ]
+        }
+
         self.tutorials = {
             "basic_workflow": basic_tutorial,
-            "control_flow": control_flow_tutorial
+            "control_flow": control_flow_tutorial,
+            "module_1_basic_compound_action": module_1_tutorial,
+            "module_2_it_automation": module_2_tutorial
         }
 
         # Populate tutorial list
@@ -547,12 +689,24 @@ class TutorialManager:
             "yaml_preview_panel": getattr(self.main_window, 'yaml_panel', None),
             "add_action_button": getattr(self.main_window, 'add_action_btn', None),
             "add_script_button": getattr(self.main_window, 'add_script_btn', None),
+            "add_switch_button": getattr(self.main_window, 'add_switch_btn', None),
+            "add_try_catch_button": getattr(self.main_window, 'add_try_catch_btn', None),
+            "action_config_panel": getattr(self.main_window, 'config_panel', None),
+            "json_path_selector_button": getattr(self.main_window, 'enhanced_json_panel', None),
+            "validate_button": getattr(self.main_window, 'validate_btn', None),
+            "template_library_button": None,  # Will be found by object name
             "action_name_field": getattr(self.main_window.config_panel, 'action_name_edit', None),
             "input_args_table": getattr(self.main_window.config_panel, 'input_args_table', None),
             "json_output_field": getattr(self.main_window.config_panel, 'json_output_edit', None),
         }
 
-        return widget_map.get(target_element)
+        # First try the widget map
+        widget = widget_map.get(target_element)
+        if widget:
+            return widget
+
+        # Fallback to finding by object name
+        return self.main_window.findChild(QWidget, target_element)
 
     def _next_step(self):
         """Advance to the next tutorial step."""

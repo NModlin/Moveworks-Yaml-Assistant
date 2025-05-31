@@ -39,7 +39,19 @@ class DSLValidator:
         self.dsl_functions = {
             'CONCAT', 'SPLIT', 'TEXT', 'IF', 'UPPER', 'LOWER', 'TRIM',
             'REPLACE', 'SUBSTRING', 'LENGTH', 'CONTAINS', 'STARTSWITH',
-            'ENDSWITH', 'REGEX', 'FORMAT', 'DATE', 'TIME', 'NOW'
+            'ENDSWITH', 'REGEX', 'FORMAT', 'DATE', 'TIME', 'NOW',
+            # Bender functions
+            'MAP', 'FILTER', 'CONDITIONAL', 'LOOKUP', 'INTEGER', 'STARTS_WITH'
+        }
+
+        # Bender function signatures for validation
+        self.bender_functions = {
+            'MAP': {'min_args': 2, 'max_args': 3, 'description': 'Transform array items'},
+            'FILTER': {'min_args': 2, 'max_args': 2, 'description': 'Filter array items by condition'},
+            'CONDITIONAL': {'min_args': 3, 'max_args': 3, 'description': 'IF...THEN...ELSE logic'},
+            'LOOKUP': {'min_args': 2, 'max_args': 3, 'description': 'Lookup value in mapping object'},
+            'INTEGER': {'min_args': 1, 'max_args': 1, 'description': 'Convert to integer'},
+            'STARTS_WITH': {'min_args': 2, 'max_args': 2, 'description': 'Check if string starts with prefix'}
         }
         
         # Data reference patterns
@@ -87,9 +99,12 @@ class DSLValidator:
         self._detect_patterns(expression, result)
         self._provide_suggestions(expression, result)
         
+        # Validate Bender functions
+        self._validate_bender_functions(expression, result)
+
         # Set overall validity
         result.is_valid = len(result.errors) == 0
-        
+
         return result
     
     def _validate_parentheses(self, expression: str, result: DSLValidationResult):
@@ -194,6 +209,104 @@ class DSLValidator:
         # Suggest proper quoting
         if any(op in expression for op in self.operators) and '"' not in expression:
             result.suggestions.append("Remember to quote the entire DSL expression in YAML (e.g., condition: \"data.age >= 18\")")
+
+    def _validate_bender_functions(self, expression: str, result: DSLValidationResult):
+        """Validate Bender function calls and their arguments."""
+        # Find all Bender function calls
+        bender_pattern = r'\$(' + '|'.join(self.bender_functions.keys()) + r')\s*\('
+        matches = re.finditer(bender_pattern, expression)
+
+        for match in matches:
+            func_name = match.group(1)
+            func_info = self.bender_functions[func_name]
+
+            # Find the complete function call
+            start_pos = match.start()
+            paren_count = 0
+            end_pos = start_pos
+
+            for i, char in enumerate(expression[match.end()-1:], match.end()-1):
+                if char == '(':
+                    paren_count += 1
+                elif char == ')':
+                    paren_count -= 1
+                    if paren_count == 0:
+                        end_pos = i + 1
+                        break
+
+            if paren_count != 0:
+                result.errors.append(f"Unmatched parentheses in ${func_name} function call")
+                continue
+
+            # Extract function arguments
+            func_call = expression[start_pos:end_pos]
+            args_str = func_call[func_call.find('(')+1:func_call.rfind(')')]
+
+            # Simple argument counting (basic validation)
+            if args_str.strip():
+                # Count commas at top level (not inside nested parentheses)
+                arg_count = self._count_top_level_commas(args_str) + 1
+            else:
+                arg_count = 0
+
+            # Validate argument count
+            min_args = func_info['min_args']
+            max_args = func_info['max_args']
+
+            if arg_count < min_args:
+                result.errors.append(f"${func_name} requires at least {min_args} argument(s), got {arg_count}")
+            elif arg_count > max_args:
+                result.errors.append(f"${func_name} accepts at most {max_args} argument(s), got {arg_count}")
+            else:
+                result.suggestions.append(f"✓ ${func_name} function call looks valid")
+
+            # Function-specific validation
+            self._validate_specific_bender_function(func_name, args_str, result)
+
+    def _count_top_level_commas(self, args_str: str) -> int:
+        """Count commas at the top level (not inside nested parentheses or brackets)."""
+        count = 0
+        paren_depth = 0
+        bracket_depth = 0
+
+        for char in args_str:
+            if char == '(':
+                paren_depth += 1
+            elif char == ')':
+                paren_depth -= 1
+            elif char == '[':
+                bracket_depth += 1
+            elif char == ']':
+                bracket_depth -= 1
+            elif char == ',' and paren_depth == 0 and bracket_depth == 0:
+                count += 1
+
+        return count
+
+    def _validate_specific_bender_function(self, func_name: str, args_str: str, result: DSLValidationResult):
+        """Validate specific Bender function requirements."""
+        if func_name == 'MAP':
+            # MAP(items, converter, context?) - items should be array path, converter should be expression
+            if 'data.' not in args_str:
+                result.warnings.append("MAP function typically requires a data path for items parameter")
+
+        elif func_name == 'FILTER':
+            # FILTER(items, condition) - items should be array path, condition should be boolean expression
+            if 'data.' not in args_str:
+                result.warnings.append("FILTER function typically requires a data path for items parameter")
+            if not any(op in args_str for op in ['==', '!=', '>', '<', '>=', '<=']):
+                result.warnings.append("FILTER condition should typically include comparison operators")
+
+        elif func_name == 'CONDITIONAL':
+            # CONDITIONAL(condition, on_pass, on_fail) - condition should be boolean expression
+            args = [arg.strip() for arg in args_str.split(',')]
+            if len(args) >= 1 and not any(op in args[0] for op in ['==', '!=', '>', '<', '>=', '<=', '&&', '||']):
+                result.warnings.append("CONDITIONAL condition should typically include comparison or logical operators")
+
+        elif func_name == 'LOOKUP':
+            # LOOKUP(mapping, key, default?) - mapping should be object path
+            if 'data.' not in args_str:
+                result.warnings.append("LOOKUP function typically requires a data path for mapping parameter")
 
 
 def is_dsl_expression(value: str) -> bool:

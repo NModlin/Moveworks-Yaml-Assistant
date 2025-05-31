@@ -280,9 +280,9 @@ class EnhancedScriptEditor(QWidget):
         # Update the step if we have one
         if self.current_step:
             self.current_step.code = self.code_editor.toPlainText()
-            
-        # Restart the validation timer
-        self.validation_timer.start(500)  # 500ms delay
+
+        # Restart the validation timer (300ms delay for consistency with compliance validator)
+        self.validation_timer.start(300)  # 300ms delay to match compliance validator patterns
         self.script_changed.emit()
         
     def _perform_validation(self):

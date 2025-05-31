@@ -44,12 +44,21 @@ APITON_ALLOWED_BUILTINS = {
     'data', 'meta_info'
 }
 
-# Prohibited patterns in APIthon code
+# Comprehensive prohibited patterns in APIthon code
 PROHIBITED_PATTERNS = [
-    # Import statements
-    (r'\bimport\s+\w+', "Import statements are not allowed in APIthon"),
-    (r'\bfrom\s+\w+\s+import\b', "Import statements are not allowed in APIthon"),
-    (r'__import__\s*\(', "Dynamic imports are not allowed in APIthon"),
+    # Enhanced import statement detection - covers all import variations
+    (r'\bimport\s+[\w\.]+(?:\s*,\s*[\w\.]+)*(?:\s+as\s+\w+)?', "Import statements are not allowed in APIthon"),
+    (r'\bfrom\s+[\w\.]+\s+import\s+[\w\*]+(?:\s*,\s*[\w\*]+)*(?:\s+as\s+\w+)?', "Import statements are not allowed in APIthon"),
+    (r'\bfrom\s+[\w\.]+\s+import\s+\*', "Wildcard imports (from ... import *) are not allowed in APIthon"),
+    (r'__import__\s*\(', "Dynamic imports with __import__() are not allowed in APIthon"),
+
+    # Multi-line import detection
+    (r'\bimport\s+\(', "Multi-line import statements are not allowed in APIthon"),
+    (r'\bfrom\s+[\w\.]+\s+import\s+\(', "Multi-line from...import statements are not allowed in APIthon"),
+
+    # Nested import detection (within functions, conditionals, etc.)
+    (r'^\s+import\s+', "Import statements within code blocks are not allowed in APIthon"),
+    (r'^\s+from\s+[\w\.]+\s+import\s+', "Import statements within code blocks are not allowed in APIthon"),
 
     # Class definitions
     (r'\bclass\s+\w+', "Class definitions are not allowed in APIthon"),
@@ -104,16 +113,31 @@ def validate_apiton_code_restrictions(code: str) -> List[str]:
         if re.search(pattern, code, re.MULTILINE):
             error_set.add(error_message)
 
-    # Additional AST-based validation for more complex patterns
+    # Enhanced AST-based validation for comprehensive import detection
     try:
         tree = ast.parse(code)
 
-        # Check for prohibited AST node types (only add if not already caught by regex)
+        # Check for prohibited AST node types with detailed import analysis
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
-                error_set.add("Import statements are not allowed in APIthon")
+                # Extract specific import names for detailed error messages
+                import_names = [alias.name for alias in node.names]
+                if len(import_names) == 1:
+                    error_set.add(f"Import statement 'import {import_names[0]}' is not allowed in APIthon")
+                else:
+                    error_set.add(f"Import statements 'import {', '.join(import_names)}' are not allowed in APIthon")
+
             elif isinstance(node, ast.ImportFrom):
-                error_set.add("Import statements are not allowed in APIthon")
+                # Extract from...import details for specific error messages
+                module_name = node.module or "unknown"
+                import_names = [alias.name for alias in node.names]
+                if '*' in [alias.name for alias in node.names]:
+                    error_set.add(f"Wildcard import 'from {module_name} import *' is not allowed in APIthon")
+                elif len(import_names) == 1:
+                    error_set.add(f"Import statement 'from {module_name} import {import_names[0]}' is not allowed in APIthon")
+                else:
+                    error_set.add(f"Import statement 'from {module_name} import {', '.join(import_names)}' is not allowed in APIthon")
+
             elif isinstance(node, ast.ClassDef):
                 error_set.add("Class definitions are not allowed in APIthon")
             elif isinstance(node, ast.FunctionDef):
@@ -130,6 +154,148 @@ def validate_apiton_code_restrictions(code: str) -> List[str]:
         pass
 
     return list(error_set)
+
+
+def detect_import_statements_comprehensive(code: str) -> List[Dict[str, str]]:
+    """
+    Comprehensive import statement detection with detailed analysis and educational feedback.
+
+    Args:
+        code: The APIthon script code to analyze
+
+    Returns:
+        List of dictionaries containing import details with error messages and remediation
+    """
+    import_violations = []
+
+    if not code or not code.strip():
+        return import_violations
+
+    # Enhanced regex patterns for specific import types
+    import_patterns = [
+        {
+            'pattern': r'\bimport\s+([\w\.]+)(?:\s+as\s+(\w+))?',
+            'type': 'simple_import',
+            'description': 'Simple import statement'
+        },
+        {
+            'pattern': r'\bfrom\s+([\w\.]+)\s+import\s+([\w\*]+)(?:\s+as\s+(\w+))?',
+            'type': 'from_import',
+            'description': 'From...import statement'
+        },
+        {
+            'pattern': r'\bfrom\s+([\w\.]+)\s+import\s+\*',
+            'type': 'wildcard_import',
+            'description': 'Wildcard import (from ... import *)'
+        },
+        {
+            'pattern': r'__import__\s*\(\s*["\']([^"\']+)["\']\s*\)',
+            'type': 'dynamic_import',
+            'description': 'Dynamic import with __import__()'
+        }
+    ]
+
+    # Check each pattern
+    for pattern_info in import_patterns:
+        matches = re.finditer(pattern_info['pattern'], code, re.MULTILINE)
+        for match in matches:
+            line_num = code[:match.start()].count('\n') + 1
+            matched_text = match.group(0)
+
+            violation = {
+                'type': pattern_info['type'],
+                'description': pattern_info['description'],
+                'line_number': line_num,
+                'matched_text': matched_text,
+                'error_message': f"Line {line_num}: {pattern_info['description']} '{matched_text}' is not allowed in APIthon",
+                'remediation': _get_import_remediation(pattern_info['type'], matched_text),
+                'educational_context': "APIthon runs in a sandboxed environment and doesn't support external module imports. Use built-in Python functions or data.* references instead."
+            }
+            import_violations.append(violation)
+
+    # AST-based detection for complex cases
+    try:
+        tree = ast.parse(code)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                line_num = getattr(node, 'lineno', 0)
+
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        violation = {
+                            'type': 'ast_import',
+                            'description': 'Import statement (AST detected)',
+                            'line_number': line_num,
+                            'matched_text': f"import {alias.name}" + (f" as {alias.asname}" if alias.asname else ""),
+                            'error_message': f"Line {line_num}: Import statement 'import {alias.name}' is not allowed in APIthon",
+                            'remediation': _get_import_remediation('simple_import', alias.name),
+                            'educational_context': "APIthon scripts cannot import external modules. Use built-in functions or process data using data.* references."
+                        }
+                        import_violations.append(violation)
+
+                elif isinstance(node, ast.ImportFrom):
+                    module_name = node.module or "unknown"
+                    for alias in node.names:
+                        import_text = f"from {module_name} import {alias.name}"
+                        violation = {
+                            'type': 'ast_from_import',
+                            'description': 'From...import statement (AST detected)',
+                            'line_number': line_num,
+                            'matched_text': import_text,
+                            'error_message': f"Line {line_num}: Import statement '{import_text}' is not allowed in APIthon",
+                            'remediation': _get_import_remediation('from_import', f"{module_name}.{alias.name}"),
+                            'educational_context': "APIthon cannot access external modules. Use built-in Python functions or data processing patterns instead."
+                        }
+                        import_violations.append(violation)
+
+    except SyntaxError:
+        # Syntax errors are handled elsewhere
+        pass
+
+    return import_violations
+
+
+def _get_import_remediation(import_type: str, import_text: str) -> str:
+    """
+    Get specific remediation suggestions based on import type and content.
+
+    Args:
+        import_type: Type of import detected
+        import_text: The import statement text
+
+    Returns:
+        Specific remediation suggestion
+    """
+    common_remediations = {
+        'json': "Use built-in dict() and list() operations instead of json module",
+        'os': "Use data.* references to access environment or system information",
+        'sys': "Use data.* references for system information",
+        'datetime': "Use string formatting or data.* references for date/time values",
+        'time': "Use data.* references for timestamp values",
+        'requests': "Use action steps (e.g., mw.http_request) for HTTP operations",
+        'urllib': "Use action steps for URL operations",
+        're': "Use built-in string methods like .replace(), .split(), .find() instead",
+        'math': "Use built-in arithmetic operators (+, -, *, /, **, %) instead",
+        'random': "Use data.* references for random values or predefined lists"
+    }
+
+    # Extract module name from import text
+    module_name = import_text.lower()
+    for module, suggestion in common_remediations.items():
+        if module in module_name:
+            return suggestion
+
+    # Generic remediation
+    if import_type in ['simple_import', 'ast_import']:
+        return "Remove the import statement and use built-in Python functions or data.* references"
+    elif import_type in ['from_import', 'ast_from_import']:
+        return "Remove the import statement and use built-in alternatives or data.* references"
+    elif import_type == 'wildcard_import':
+        return "Remove the wildcard import and use specific built-in functions instead"
+    elif import_type == 'dynamic_import':
+        return "Remove the dynamic import and use direct data processing instead"
+    else:
+        return "Use built-in Python functions or data.* references instead of importing external modules"
 
 
 def validate_apiton_syntax(code: str) -> List[str]:

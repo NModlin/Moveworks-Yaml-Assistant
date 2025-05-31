@@ -35,10 +35,34 @@ class ComplianceValidator:
             'ScriptStep': ['code', 'output_key'],
             'SwitchStep': ['cases'],
             'ForLoopStep': ['each', 'in_source', 'output_key'],
-            'ParallelStep': [],  # Varies by mode
+            'ParallelStep': [],  # Varies by mode - output_key required when containing for loops
             'ReturnStep': [],  # output_mapper is optional
-            'RaiseStep': [],  # All fields are optional
+            'RaiseStep': ['output_key'],  # output_key is always required for error tracking
             'TryCatchStep': ['try_steps']
+        }
+
+        # Enhanced output_key requirements based on context
+        self.output_key_requirements = {
+            'ActionStep': 'always_required',
+            'ScriptStep': 'always_required',
+            'ForLoopStep': 'required_in_parallel',  # Required when used within parallel expressions
+            'ParallelStep': 'required_with_for_loops',  # Required when containing for loops
+            'RaiseStep': 'always_required',  # Always required for error information
+            'SwitchStep': 'optional',
+            'ReturnStep': 'optional',
+            'TryCatchStep': 'optional'
+        }
+
+        # Enhanced action_name requirements and validation rules
+        self.action_name_requirements = {
+            'ActionStep': 'always_required',  # ActionStep always requires action_name
+            'ScriptStep': 'not_applicable',   # ScriptStep doesn't use action_name
+            'ForLoopStep': 'not_applicable',
+            'ParallelStep': 'not_applicable',
+            'RaiseStep': 'not_applicable',
+            'SwitchStep': 'not_applicable',
+            'ReturnStep': 'not_applicable',
+            'TryCatchStep': 'not_applicable'
         }
         
         self.reserved_output_keys = {
@@ -65,10 +89,13 @@ class ComplianceValidator:
         for i, step in enumerate(workflow.steps):
             step_num = i + 1
             self._validate_step_compliance(step, step_num, result)
-        
+
+        # Validate output_key uniqueness across the entire workflow
+        self.validate_output_key_uniqueness(workflow, result)
+
         # Set overall validity
         result.is_valid = (
-            len(result.errors) == 0 and 
+            len(result.errors) == 0 and
             len(result.mandatory_field_errors) == 0 and
             len(result.field_naming_errors) == 0 and
             len(result.apiton_errors) == 0
@@ -103,6 +130,12 @@ class ComplianceValidator:
     def _validate_mandatory_fields(self, step: Any, step_type: str, step_num: int, result: ComplianceValidationResult):
         """Validate that all mandatory fields are present and non-empty."""
         mandatory_fields = self.mandatory_fields.get(step_type, [])
+
+        # Enhanced output_key validation based on context
+        self._validate_output_key_requirements(step, step_type, step_num, result)
+
+        # Enhanced action_name validation based on context
+        self._validate_action_name_requirements(step, step_type, step_num, result)
         
         for field_name in mandatory_fields:
             if not hasattr(step, field_name):
@@ -167,21 +200,61 @@ class ComplianceValidator:
                         )
     
     def _validate_apiton_compliance(self, step: ScriptStep, step_num: int, result: ComplianceValidationResult):
-        """Validate APIthon script compliance using enhanced validator."""
+        """Validate APIthon script compliance using enhanced validator with comprehensive field validation."""
+        # Validate code field presence and naming consistency
+        self._validate_script_code_field(step, step_num, result)
+
         if step.code and step.code.strip():
             # Use enhanced APIthon validator
             apiton_result = enhanced_apiton_validator.comprehensive_validate(step)
-            
+
             if not apiton_result.is_valid:
                 for error in apiton_result.errors:
-                    result.apiton_errors.append(f"Step {step_num}: {error}")
-            
-            # Add warnings and suggestions
+                    if hasattr(error, 'message'):
+                        # New ValidationError objects with detailed information
+                        error_msg = f"Step {step_num}: {error.message}"
+                        if error.error_type == "import_statement":
+                            error_msg += f" (Line {error.line_number})" if error.line_number else ""
+                            if error.remediation:
+                                error_msg += f" - {error.remediation}"
+                        result.apiton_errors.append(error_msg)
+                    else:
+                        # Backward compatibility for string errors
+                        result.apiton_errors.append(f"Step {step_num}: {error}")
+
+            # Add warnings and suggestions with enhanced import-specific messaging
             for warning in apiton_result.warnings:
-                result.warnings.append(f"Step {step_num}: {warning}")
-            
+                if hasattr(warning, 'message'):
+                    result.warnings.append(f"Step {step_num}: {warning.message}")
+                else:
+                    result.warnings.append(f"Step {step_num}: {warning}")
+
             for suggestion in apiton_result.suggestions:
                 result.suggestions.append(f"Step {step_num}: {suggestion}")
+
+            # Add import-specific educational context if violations found
+            if apiton_result.import_violations:
+                result.suggestions.append(
+                    f"Step {step_num}: APIthon runs in a sandboxed environment. "
+                    f"Use built-in Python functions (len, str, int, dict, list) or data.* references instead of imports."
+                )
+                result.suggestions.append(
+                    f"Step {step_num}: For HTTP requests, use action steps like 'mw.http_request' instead of importing requests."
+                )
+
+            # Validate 4096-byte limit with specific error messaging
+            self._validate_apiton_byte_limits(step, step_num, result)
+
+            # Validate private method detection
+            self._validate_apiton_private_methods(step, step_num, result)
+
+            # Validate return statement logic
+            self._validate_apiton_return_logic(step, step_num, result, apiton_result)
+        else:
+            # Code field is empty - this is a mandatory field error
+            result.mandatory_field_errors.append(
+                f"Step {step_num} (ScriptStep): 'code' field cannot be empty"
+            )
     
     def _is_valid_snake_case(self, name: str) -> bool:
         """Check if a name follows valid snake_case convention."""
@@ -205,6 +278,199 @@ class ComplianceValidator:
             return False
         
         return True
+
+    def _validate_output_key_requirements(self, step: Any, step_type: str, step_num: int, result: ComplianceValidationResult):
+        """Validate output_key requirements based on step type and context."""
+        requirement = self.output_key_requirements.get(step_type, 'optional')
+
+        if requirement == 'always_required':
+            # ActionStep, ScriptStep, RaiseStep always require output_key
+            if not hasattr(step, 'output_key') or not step.output_key or not step.output_key.strip():
+                result.mandatory_field_errors.append(
+                    f"Step {step_num} ({step_type}): output_key is required for {step_type}"
+                )
+
+        elif requirement == 'required_in_parallel':
+            # ForLoopStep requires output_key when used within parallel expressions
+            # This would need workflow context to determine - for now treat as always required
+            if not hasattr(step, 'output_key') or not step.output_key or not step.output_key.strip():
+                result.mandatory_field_errors.append(
+                    f"Step {step_num} ({step_type}): output_key is required for {step_type}"
+                )
+
+        elif requirement == 'required_with_for_loops':
+            # ParallelStep requires output_key when containing for loops
+            if hasattr(step, 'for_loop') and step.for_loop:
+                if not hasattr(step, 'output_key') or not step.output_key or not step.output_key.strip():
+                    result.mandatory_field_errors.append(
+                        f"Step {step_num} ({step_type}): output_key is required when ParallelStep contains for loops"
+                    )
+
+    def validate_output_key_uniqueness(self, workflow: Any, result: ComplianceValidationResult):
+        """Validate that all output_key values are unique within the workflow."""
+        output_keys = {}  # Maps output_key -> list of (step_num, step_type)
+
+        for step_num, step in enumerate(workflow.steps, 1):
+            if hasattr(step, 'output_key') and step.output_key and step.output_key.strip() and step.output_key != '_':
+                output_key = step.output_key.strip()
+                step_type = type(step).__name__
+
+                if output_key not in output_keys:
+                    output_keys[output_key] = []
+                output_keys[output_key].append((step_num, step_type))
+
+        # Check for duplicates
+        for output_key, step_list in output_keys.items():
+            if len(step_list) > 1:
+                step_descriptions = [f"Step {num} ({stype})" for num, stype in step_list]
+                result.mandatory_field_errors.append(
+                    f"Duplicate output_key '{output_key}' found in: {', '.join(step_descriptions)}"
+                )
+
+    def _validate_action_name_requirements(self, step: Any, step_type: str, step_num: int, result: ComplianceValidationResult):
+        """Validate action_name requirements based on step type and context."""
+        requirement = self.action_name_requirements.get(step_type, 'not_applicable')
+
+        if requirement == 'always_required':
+            # ActionStep always requires action_name
+            if not hasattr(step, 'action_name') or not step.action_name or not step.action_name.strip():
+                result.mandatory_field_errors.append(
+                    f"Step {step_num} ({step_type}): action_name is required for {step_type}"
+                )
+            else:
+                # Validate action_name format and content
+                self._validate_action_name_format(step.action_name, step_type, step_num, result)
+
+    def _validate_action_name_format(self, action_name: str, step_type: str, step_num: int, result: ComplianceValidationResult):
+        """Validate action_name format and naming conventions."""
+        action_name = action_name.strip()
+
+        # Check for invalid characters (whitespace, special chars except dots and underscores)
+        import re
+        if re.search(r'[^\w\.]', action_name):
+            result.field_naming_errors.append(
+                f"Step {step_num} ({step_type}): action_name '{action_name}' contains invalid characters. Use only letters, numbers, dots, and underscores."
+            )
+
+        # Check minimum length
+        if len(action_name) < 2:
+            result.field_naming_errors.append(
+                f"Step {step_num} ({step_type}): action_name '{action_name}' is too short. Minimum 2 characters required."
+            )
+
+        # Check for proper mw. prefix format for built-in actions
+        if action_name.startswith('mw.'):
+            if len(action_name) <= 3:  # Just "mw."
+                result.field_naming_errors.append(
+                    f"Step {step_num} ({step_type}): action_name '{action_name}' is incomplete. Specify the action after 'mw.'"
+                )
+
+        # Validate against MW_ACTIONS_CATALOG if available
+        self._validate_action_name_catalog(action_name, step_type, step_num, result)
+
+    def _validate_action_name_catalog(self, action_name: str, step_type: str, step_num: int, result: ComplianceValidationResult):
+        """Validate action_name against Moveworks Actions Catalog."""
+        try:
+            from mw_actions_catalog import MW_ACTIONS_CATALOG
+
+            # Get list of known action names
+            known_actions = [action.action_name for action in MW_ACTIONS_CATALOG]
+
+            # Check if it's a known action
+            if action_name not in known_actions:
+                # Check for similar actions (typo detection)
+                similar_actions = [action for action in known_actions if action_name.lower() in action.lower()]
+
+                if similar_actions:
+                    suggestions = similar_actions[:3]  # Top 3 suggestions
+                    result.warnings.append(
+                        f"Step {step_num} ({step_type}): action_name '{action_name}' not found in catalog. Did you mean: {', '.join(suggestions)}?"
+                    )
+                else:
+                    result.warnings.append(
+                        f"Step {step_num} ({step_type}): action_name '{action_name}' not found in Moveworks catalog. Verify the action name is correct."
+                    )
+        except ImportError:
+            # MW_ACTIONS_CATALOG not available, skip catalog validation
+            pass
+
+    def _validate_script_code_field(self, step: ScriptStep, step_num: int, result: ComplianceValidationResult):
+        """Validate that ScriptStep uses consistent 'code' field naming."""
+        # Check if the step has the required 'code' attribute
+        if not hasattr(step, 'code'):
+            result.mandatory_field_errors.append(
+                f"Step {step_num} (ScriptStep): Missing required 'code' field"
+            )
+
+        # Check for potential field naming inconsistencies (if other attributes exist)
+        inconsistent_fields = []
+        for attr_name in ['script', 'apiton_code', 'script_code', 'python_code']:
+            if hasattr(step, attr_name):
+                inconsistent_fields.append(attr_name)
+
+        if inconsistent_fields:
+            result.field_naming_errors.append(
+                f"Step {step_num} (ScriptStep): Use 'code' field instead of: {', '.join(inconsistent_fields)}"
+            )
+
+    def _validate_apiton_byte_limits(self, step: ScriptStep, step_num: int, result: ComplianceValidationResult):
+        """Validate APIthon script byte limits with specific error messaging."""
+        if step.code:
+            code_bytes = len(step.code.encode('utf-8'))
+
+            if code_bytes > 4096:
+                result.apiton_errors.append(
+                    f"Step {step_num}: APIthon script exceeds 4096-byte limit ({code_bytes} bytes). "
+                    f"Consider breaking into smaller scripts or optimizing code length."
+                )
+            elif code_bytes > 3276:  # 80% of limit
+                result.warnings.append(
+                    f"Step {step_num}: APIthon script approaching byte limit ({code_bytes}/4096 bytes). "
+                    f"Consider optimizing for better performance."
+                )
+
+    def _validate_apiton_private_methods(self, step: ScriptStep, step_num: int, result: ComplianceValidationResult):
+        """Validate that APIthon scripts don't use private methods or identifiers."""
+        if step.code:
+            import re
+
+            # Find identifiers starting with underscore (private convention)
+            private_pattern = r'\b_[a-zA-Z_][a-zA-Z0-9_]*\b'
+            private_matches = re.findall(private_pattern, step.code)
+
+            if private_matches:
+                unique_private = list(set(private_matches))
+                result.apiton_errors.append(
+                    f"Step {step_num}: Private identifiers not allowed in APIthon: {', '.join(unique_private)}. "
+                    f"Use public identifiers without leading underscores."
+                )
+
+    def _validate_apiton_return_logic(self, step: ScriptStep, step_num: int, result: ComplianceValidationResult, apiton_result):
+        """Validate return statement logic with educational guidance."""
+        if hasattr(apiton_result, 'return_analysis') and apiton_result.return_analysis:
+            return_analysis = apiton_result.return_analysis
+
+            # Check for missing return statements when last line is assignment
+            if (not return_analysis.get('has_explicit_return') and
+                return_analysis.get('last_statement_type') == 'Assign'):
+                result.suggestions.append(
+                    f"Step {step_num}: Consider adding 'return' statement. "
+                    f"The last line assigns to a variable but doesn't return it. "
+                    f"The output_key will receive None instead of your variable's value."
+                )
+
+            # Validate reserved output_key handling
+            if step.output_key in ['result', 'results']:
+                if step.output_key == 'result':
+                    result.suggestions.append(
+                        f"Step {step_num}: output_key 'result' suggests citation format. "
+                        f"Consider returning a dictionary with citation fields like 'title', 'url', 'snippet'."
+                    )
+                elif step.output_key == 'results':
+                    result.suggestions.append(
+                        f"Step {step_num}: output_key 'results' suggests citation list format. "
+                        f"Consider returning a list of citation dictionaries."
+                    )
 
 
 # Global instance for easy access
