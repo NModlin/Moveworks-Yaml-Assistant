@@ -256,8 +256,268 @@ class ValidationDialog(QDialog):
         QApplication.clipboard().setText(error_text)
 
 
+class EnhancedAPIthonValidationWidget(QWidget):
+    """Enhanced widget for displaying comprehensive APIthon validation results with detailed error tracking."""
+
+    def __init__(self):
+        super().__init__()
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Set up the enhanced APIthon validation widget UI."""
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+
+        # Header with status indicator
+        header_layout = QHBoxLayout()
+        header_label = QLabel("Enhanced APIthon Validation")
+        header_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #2c3e50;")
+        header_layout.addWidget(header_label)
+
+        self.status_indicator = StatusIndicator("Ready")
+        header_layout.addWidget(self.status_indicator)
+        header_layout.addStretch()
+
+        layout.addLayout(header_layout)
+
+        # Validation summary section
+        summary_group = QGroupBox("Validation Summary")
+        summary_layout = QFormLayout(summary_group)
+
+        self.error_count_label = QLabel("0 errors")
+        summary_layout.addRow("Errors:", self.error_count_label)
+
+        self.warning_count_label = QLabel("0 warnings")
+        summary_layout.addRow("Warnings:", self.warning_count_label)
+
+        self.private_member_count_label = QLabel("0 violations")
+        summary_layout.addRow("Private Members:", self.private_member_count_label)
+
+        layout.addWidget(summary_group)
+
+        # Code length analysis section
+        length_group = QGroupBox("Code Length Analysis")
+        length_layout = QFormLayout(length_group)
+
+        self.code_size_label = QLabel("0 / 4096 bytes")
+        length_layout.addRow("Code Size:", self.code_size_label)
+
+        self.size_percentage_label = QLabel("0%")
+        length_layout.addRow("Usage:", self.size_percentage_label)
+
+        self.bytes_remaining_label = QLabel("4096 bytes")
+        length_layout.addRow("Remaining:", self.bytes_remaining_label)
+
+        layout.addWidget(length_group)
+
+        # Private member violations section
+        private_group = QGroupBox("Private Member Violations")
+        private_layout = QVBoxLayout(private_group)
+
+        self.private_violations_list = QListWidget()
+        self.private_violations_list.setMaximumHeight(100)
+        private_layout.addWidget(self.private_violations_list)
+
+        layout.addWidget(private_group)
+
+        # Return analysis section
+        return_group = QGroupBox("Return Value Analysis")
+        return_layout = QFormLayout(return_group)
+
+        self.return_type_label = QLabel("Not analyzed")
+        return_layout.addRow("Last Statement:", self.return_type_label)
+
+        self.statement_count_label = QLabel("0 statements")
+        return_layout.addRow("Statement Count:", self.statement_count_label)
+
+        self.return_suggestion_label = QLabel("")
+        self.return_suggestion_label.setWordWrap(True)
+        self.return_suggestion_label.setStyleSheet("color: #666; font-size: 10px;")
+        return_layout.addRow("Suggestion:", self.return_suggestion_label)
+
+        layout.addWidget(return_group)
+
+        # Citation compliance section
+        citation_group = QGroupBox("Citation Compliance")
+        citation_layout = QFormLayout(citation_group)
+
+        self.citation_status_label = QLabel("Not applicable")
+        citation_layout.addRow("Status:", self.citation_status_label)
+
+        self.citation_fields_label = QLabel("")
+        self.citation_fields_label.setWordWrap(True)
+        self.citation_fields_label.setStyleSheet("color: #666; font-size: 10px;")
+        citation_layout.addRow("Fields:", self.citation_fields_label)
+
+        layout.addWidget(citation_group)
+
+        # Detailed errors section
+        errors_group = QGroupBox("Detailed Errors")
+        errors_layout = QVBoxLayout(errors_group)
+
+        self.detailed_errors_list = ErrorListWidget()
+        self.detailed_errors_list.setMaximumHeight(200)
+        errors_layout.addWidget(self.detailed_errors_list)
+
+        layout.addWidget(errors_group)
+
+        layout.addStretch()
+
+    def update_validation_result(self, result):
+        """Update the widget with enhanced APIthon validation results."""
+        from enhanced_apiton_validator import APIthonValidationResult, ValidationError
+
+        if not isinstance(result, APIthonValidationResult):
+            return
+
+        # Update validation summary
+        error_count = len(result.errors)
+        warning_count = len(result.warnings)
+        private_count = len(result.private_member_violations)
+
+        self.error_count_label.setText(f"{error_count} errors")
+        if error_count > 0:
+            self.error_count_label.setStyleSheet("color: #f44336; font-weight: bold;")
+        else:
+            self.error_count_label.setStyleSheet("color: #4caf50;")
+
+        self.warning_count_label.setText(f"{warning_count} warnings")
+        if warning_count > 0:
+            self.warning_count_label.setStyleSheet("color: #ff9800; font-weight: bold;")
+        else:
+            self.warning_count_label.setStyleSheet("color: #4caf50;")
+
+        self.private_member_count_label.setText(f"{private_count} violations")
+        if private_count > 0:
+            self.private_member_count_label.setStyleSheet("color: #f44336; font-weight: bold;")
+        else:
+            self.private_member_count_label.setStyleSheet("color: #4caf50;")
+
+        # Update status indicator
+        if error_count > 0:
+            self.status_indicator.set_error_count(error_count)
+        elif warning_count > 0:
+            self.status_indicator.set_status("warning", f"⚠ {warning_count} Warning(s)")
+        else:
+            self.status_indicator.set_status("success", "✓ All Checks Passed")
+
+        # Update code length analysis
+        if result.code_length_analysis:
+            code_bytes = result.code_length_analysis.get('code_bytes', 0)
+            code_limit = result.code_length_analysis.get('code_bytes_limit', 4096)
+            percentage = result.code_length_analysis.get('percentage_used', 0)
+            remaining = result.code_length_analysis.get('bytes_remaining', 4096)
+
+            self.code_size_label.setText(f"{code_bytes} / {code_limit} bytes")
+            self.size_percentage_label.setText(f"{percentage:.1f}%")
+            self.bytes_remaining_label.setText(f"{remaining} bytes")
+
+            # Color code based on usage
+            if code_bytes > code_limit:
+                color = "#f44336"
+            elif percentage > 90:
+                color = "#ff9800"
+            elif percentage > 70:
+                color = "#ffc107"
+            else:
+                color = "#4caf50"
+
+            self.code_size_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+            self.size_percentage_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+
+        # Update private member violations
+        self.private_violations_list.clear()
+        for violation in result.private_member_violations:
+            identifier = violation.get('identifier', '')
+            line_num = violation.get('line_number', 0)
+            item_text = f"Line {line_num}: {identifier}"
+            item = QListWidgetItem(item_text)
+            item.setToolTip(f"Private identifier '{identifier}' found on line {line_num}")
+            self.private_violations_list.addItem(item)
+
+        # Update return analysis
+        if result.return_analysis:
+            last_type = result.return_analysis.get('last_statement_type', 'Unknown')
+            has_return = result.return_analysis.get('has_explicit_return', False)
+            statement_count = result.return_analysis.get('statement_count', 0)
+
+            self.statement_count_label.setText(f"{statement_count} statements")
+
+            if has_return:
+                self.return_type_label.setText(f"{last_type} (explicit return)")
+                self.return_type_label.setStyleSheet("color: #4caf50; font-weight: bold;")
+            else:
+                self.return_type_label.setText(f"{last_type} (implicit return)")
+                if last_type == 'Assign':
+                    self.return_type_label.setStyleSheet("color: #ff9800; font-weight: bold;")
+                else:
+                    self.return_type_label.setStyleSheet("color: #666;")
+
+            # Show suggestions
+            if result.suggestions:
+                suggestion_text = "; ".join(result.suggestions[:2])  # Show first 2 suggestions
+                self.return_suggestion_label.setText(suggestion_text)
+            else:
+                self.return_suggestion_label.setText("No suggestions")
+
+        # Update citation compliance
+        if result.citation_compliance:
+            is_reserved = result.citation_compliance.get('is_reserved', False)
+            if is_reserved:
+                status = result.citation_compliance.get('compliance_status', 'unknown')
+                output_key = result.citation_compliance.get('output_key', '')
+
+                if status == 'partial':
+                    self.citation_status_label.setText(f"Partial compliance ({output_key})")
+                    self.citation_status_label.setStyleSheet("color: #ff9800; font-weight: bold;")
+                elif status == 'non_compliant':
+                    self.citation_status_label.setText(f"Non-compliant ({output_key})")
+                    self.citation_status_label.setStyleSheet("color: #f44336; font-weight: bold;")
+                else:
+                    self.citation_status_label.setText(f"Compliant ({output_key})")
+                    self.citation_status_label.setStyleSheet("color: #4caf50; font-weight: bold;")
+
+                # Show field information
+                found_fields = result.citation_compliance.get('found_fields', [])
+                missing_fields = result.citation_compliance.get('missing_fields', [])
+
+                if found_fields or missing_fields:
+                    field_text = f"Found: {', '.join(found_fields) if found_fields else 'none'}"
+                    if missing_fields:
+                        field_text += f" | Missing: {', '.join(missing_fields)}"
+                    self.citation_fields_label.setText(field_text)
+                else:
+                    self.citation_fields_label.setText("No citation fields detected")
+            else:
+                self.citation_status_label.setText("Not applicable")
+                self.citation_status_label.setStyleSheet("color: #666;")
+                self.citation_fields_label.setText("")
+
+        # Update detailed errors list
+        all_errors = []
+        for error in result.errors:
+            if isinstance(error, ValidationError):
+                error_text = error.message
+                if error.line_number:
+                    error_text = f"Line {error.line_number}: {error_text}"
+                all_errors.append(error_text)
+            else:
+                all_errors.append(str(error))
+
+        for warning in result.warnings:
+            if isinstance(warning, ValidationError):
+                warning_text = warning.message
+                if warning.line_number:
+                    warning_text = f"Line {warning.line_number}: {warning_text}"
+                all_errors.append(f"Warning: {warning_text}")
+            else:
+                all_errors.append(f"Warning: {str(warning)}")
+
+        self.detailed_errors_list.set_errors(all_errors)
+
+
 class APIthonValidationWidget(QWidget):
-    """Specialized widget for displaying APIthon validation results."""
+    """Legacy widget for displaying APIthon validation results (maintained for backward compatibility)."""
 
     def __init__(self):
         super().__init__()

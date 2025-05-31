@@ -68,6 +68,7 @@ class ComprehensiveHelpSystem:
         self._initialize_enhanced_features_help()
         self._initialize_workflow_management_help()
         self._initialize_data_handling_help()
+        self._initialize_dsl_help()  # New DSL-specific help
         self._initialize_validation_help()
         self._initialize_templates_help()
         self._initialize_advanced_features_help()
@@ -108,34 +109,40 @@ class ComprehensiveHelpSystem:
                 order=5
             ),
             HelpSection(
+                title="DSL & Data Mapping",
+                description="Moveworks Data Mapping Syntax (DSL) expressions and functions",
+                icon="🔗",
+                order=6
+            ),
+            HelpSection(
                 title="Validation & Testing",
                 description="Ensuring workflow quality and correctness",
                 icon="✅",
-                order=6
+                order=7
             ),
             HelpSection(
                 title="Templates & Examples",
                 description="Pre-built templates and example workflows",
                 icon="📚",
-                order=7
+                order=8
             ),
             HelpSection(
                 title="Advanced Features",
                 description="Power user features and customization",
                 icon="🎯",
-                order=8
+                order=9
             ),
             HelpSection(
                 title="Troubleshooting",
                 description="Common issues and solutions",
                 icon="🔧",
-                order=9
+                order=10
             ),
             HelpSection(
                 title="Best Practices",
                 description="Tips and recommendations for optimal workflows",
                 icon="💡",
-                order=10
+                order=11
             )
         ]
 
@@ -1356,6 +1363,106 @@ The Enhanced JSON Path Selector makes data selection intuitive and error-free, e
         # This will be implemented in the next chunk
         pass
 
+    def _initialize_dsl_help(self):
+        """Initialize comprehensive DSL (Data Mapping Syntax) help topics."""
+
+        # DSL Overview
+        self.add_topic(HelpTopic(
+            title="DSL Overview",
+            content="""
+# Moveworks Data Mapping Syntax (DSL) Overview
+
+The Moveworks Data Mapping Syntax (DSL) is a powerful expression language used to reference data, perform transformations, and create dynamic values in your workflows.
+
+## What is DSL?
+
+DSL expressions allow you to:
+- **Reference data** from previous steps: `data.user_info.name`
+- **Access user context**: `meta_info.user.email`
+- **Perform transformations**: `$CONCAT([data.first_name, ' ', data.last_name])`
+- **Create conditions**: `data.user.age >= 18`
+- **Build dynamic values**: `$IF(data.is_premium, 'Premium User', 'Standard User')`
+
+## Where DSL is Used
+
+DSL expressions are commonly used in:
+- **Input Arguments**: Values passed to actions and scripts
+- **Switch Conditions**: Logic for conditional branching
+- **Output Mappers**: Transforming step outputs
+- **For Loop Iterators**: Dynamic iteration over data
+- **Return Values**: Dynamic return expressions
+
+## DSL vs. Regular Values
+
+### DSL Expressions (quoted in YAML):
+```yaml
+input_args:
+  user_email: "data.user_info.email"           # DSL - references data
+  full_name: "$CONCAT([data.first, data.last])" # DSL - function call
+  condition: "data.age >= 18"                   # DSL - comparison
+```
+
+### Regular Values (not quoted):
+```yaml
+input_args:
+  timeout: 30                    # Regular number
+  enabled: true                  # Regular boolean
+  message: "Hello World"         # Regular string
+```
+
+## Key DSL Patterns
+
+### 1. Data References
+- `data.field_name` - Access step output data
+- `data.user_info.name` - Nested field access
+- `data.items[0]` - Array element access
+
+### 2. Meta Information
+- `meta_info.user.email` - Current user's email
+- `meta_info.user.name` - Current user's name
+- `meta_info.user.id` - Current user's ID
+
+### 3. DSL Functions
+- `$CONCAT([...])` - String concatenation
+- `$SPLIT(string, delimiter)` - String splitting
+- `$IF(condition, true_val, false_val)` - Conditional logic
+- `$TEXT(value)` - Convert to text
+
+### 4. Operators
+- `==`, `!=` - Equality comparison
+- `>`, `<`, `>=`, `<=` - Numeric comparison
+- `&&`, `||` - Logical operators
+
+## Best Practices
+
+1. **Use descriptive data paths**: `data.user_profile.contact_info.email`
+2. **Test complex expressions**: Use the DSL Playground for validation
+3. **Keep expressions readable**: Break complex logic into multiple steps
+4. **Quote all DSL expressions**: Ensure proper YAML formatting
+5. **Validate data paths**: Ensure referenced fields exist
+
+## Getting Help
+
+- **DSL Builder**: Use the interactive DSL builder for complex expressions
+- **Templates**: Browse common DSL patterns in the template library
+- **Validation**: Real-time DSL syntax checking
+- **Examples**: Context-aware DSL examples based on your data
+
+Ready to start using DSL? Check out the "Common DSL Patterns" and "DSL Builder" topics!
+            """.strip(),
+            category="DSL & Data Mapping",
+            difficulty="Beginner",
+            keywords=["dsl", "data", "mapping", "syntax", "expressions", "moveworks"],
+            estimated_time="5 minutes",
+            related_topics=["Common DSL Patterns", "DSL Builder", "Data References", "DSL Functions"],
+            examples=[
+                "data.user_info.email",
+                "meta_info.user.name",
+                "$CONCAT([data.first_name, ' ', data.last_name])",
+                "data.age >= 18"
+            ]
+        ))
+
     def _initialize_validation_help(self):
         """Initialize help topics for validation."""
         # This will be implemented in the next chunk
@@ -1446,7 +1553,11 @@ TOOLTIPS = {
     "action_name": "The name of the action to execute (e.g., 'mw.get_user_by_email')",
     "output_key": "Unique identifier for storing this step's output (used in data.output_key references)",
     "description": "Optional human-readable description of what this step does",
-    "input_args": "Key-value pairs passed as arguments to the action or script",
+    "input_args": "Key-value pairs passed as arguments to the action or script. Use DSL expressions like 'data.field_name' or 'meta_info.user.email' for dynamic values.",
+    "input_args_dsl": "Enter a Moveworks DSL expression or data path (e.g., 'data.user_info.email', '$CONCAT([data.first, data.last])', 'meta_info.user.name'). DSL expressions will be automatically quoted in the YAML output.",
+    "switch_condition_dsl": "Enter the DSL expression for the switch condition (e.g., 'data.user.status == \"active\"', 'data.age >= 18'). This determines which case will be executed.",
+    "output_mapper_dsl": "Enter a DSL expression to transform the output (e.g., 'data.result.value', '$CONCAT([data.prefix, data.value])'). This maps the step output to the desired format.",
+    "for_loop_iterator_dsl": "Enter a DSL expression that evaluates to an array for iteration (e.g., 'data.items', 'data.user_list'). Each element will be available as 'data.item' in the loop body.",
     "json_output": "Example JSON that this step will produce when executed",
     "script_code": "APIthon (Python-like) code that processes data and returns a result",
     "parse_json": "Validate and save the JSON output for use in variable mapping",

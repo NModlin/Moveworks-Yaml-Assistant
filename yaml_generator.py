@@ -20,7 +20,7 @@ from core_structures import (
 
 def _is_dsl_expression(value: str) -> bool:
     """
-    Check if a string value contains Moveworks DSL expressions that need quoting.
+    Enhanced check if a string value contains Moveworks DSL expressions that need quoting.
 
     Args:
         value: String value to check
@@ -31,14 +31,45 @@ def _is_dsl_expression(value: str) -> bool:
     if not isinstance(value, str):
         return False
 
-    # DSL patterns that need string quoting in YAML
+    # Enhanced DSL patterns that need string quoting in YAML
     dsl_patterns = [
-        r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # data.field_name
-        r'\bmeta_info\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # meta_info.user.email
+        # Data references
+        r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # data.field_name.subfield
         r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*\[[0-9]+\]',  # data.array[0]
+        r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*\[-?[0-9]+\]',  # data.array[-1]
+
+        # Meta info references
+        r'\bmeta_info\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # meta_info.user.email
+
+        # Comparison operators
         r'==|!=|>=|<=|>|<',  # Comparison operators in conditions
-        r'\$CONCAT\(',  # Moveworks functions
-        r'\$[A-Z_]+\(',  # Other Moveworks functions
+
+        # Logical operators
+        r'&&|\|\|',  # Logical AND/OR operators
+
+        # DSL functions (enhanced detection)
+        r'\$[A-Z_]+\(',  # All Moveworks functions starting with $
+
+        # Common DSL function patterns
+        r'\$CONCAT\s*\(',  # $CONCAT with optional whitespace
+        r'\$IF\s*\(',      # $IF with optional whitespace
+        r'\$SPLIT\s*\(',   # $SPLIT with optional whitespace
+        r'\$TEXT\s*\(',    # $TEXT with optional whitespace
+        r'\$UPPER\s*\(',   # $UPPER with optional whitespace
+        r'\$LOWER\s*\(',   # $LOWER with optional whitespace
+
+        # Array/object method calls that might be DSL
+        r'\.contains\s*\(',  # .contains() method
+        r'\.length\b',       # .length property
+        r'\.size\b',         # .size property
+
+        # Null checks
+        r'!= null\b',        # != null
+        r'== null\b',        # == null
+
+        # Boolean literals in expressions (when part of larger expressions)
+        r'\b(true|false)\b.*[=<>!&|]',  # Boolean with operators
+        r'[=<>!&|].*\b(true|false)\b',  # Operators with boolean
     ]
 
     return any(re.search(pattern, value) for pattern in dsl_patterns)

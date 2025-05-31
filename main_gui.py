@@ -37,8 +37,10 @@ from contextual_examples import ContextualExamplesPanel
 from enhanced_validator import enhanced_validator, ValidationError
 from enhanced_script_editor import EnhancedScriptEditor
 from enhanced_apiton_validator import enhanced_apiton_validator, APIthonValidationResult
-from error_display import APIthonValidationWidget
+from error_display import APIthonValidationWidget, EnhancedAPIthonValidationWidget
 from compliance_validator import compliance_validator, ComplianceValidationResult
+from dsl_input_widget import DSLInputWidget
+from dsl_validator import dsl_validator
 
 
 class WorkflowListWidget(QListWidget):

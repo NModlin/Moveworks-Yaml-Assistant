@@ -21,15 +21,29 @@ from apiton_validator import (
 
 
 @dataclass
+class ValidationError:
+    """Detailed validation error with location and context information."""
+    message: str
+    line_number: Optional[int] = None
+    column_number: Optional[int] = None
+    code_snippet: Optional[str] = None
+    error_type: str = "general"
+    remediation: Optional[str] = None
+    educational_context: Optional[str] = None
+
+
+@dataclass
 class APIthonValidationResult:
     """Comprehensive APIthon validation result with detailed feedback."""
     is_valid: bool
-    errors: List[str]
-    warnings: List[str]
+    errors: List[ValidationError]
+    warnings: List[ValidationError]
     suggestions: List[str]
     resource_usage: Dict[str, Any]
     return_analysis: Dict[str, Any]
     citation_compliance: Dict[str, Any]
+    private_member_violations: List[Dict[str, Any]]
+    code_length_analysis: Dict[str, Any]
 
     def __post_init__(self):
         if self.errors is None:
@@ -44,6 +58,47 @@ class APIthonValidationResult:
             self.return_analysis = {}
         if self.citation_compliance is None:
             self.citation_compliance = {}
+        if self.private_member_violations is None:
+            self.private_member_violations = []
+        if self.code_length_analysis is None:
+            self.code_length_analysis = {}
+
+    def add_error(self, message: str, line_number: Optional[int] = None,
+                  error_type: str = "general", remediation: Optional[str] = None,
+                  educational_context: Optional[str] = None, code_snippet: Optional[str] = None):
+        """Add a detailed error to the validation result."""
+        error = ValidationError(
+            message=message,
+            line_number=line_number,
+            code_snippet=code_snippet,
+            error_type=error_type,
+            remediation=remediation,
+            educational_context=educational_context
+        )
+        self.errors.append(error)
+        self.is_valid = False
+
+    def add_warning(self, message: str, line_number: Optional[int] = None,
+                    error_type: str = "warning", remediation: Optional[str] = None,
+                    educational_context: Optional[str] = None, code_snippet: Optional[str] = None):
+        """Add a detailed warning to the validation result."""
+        warning = ValidationError(
+            message=message,
+            line_number=line_number,
+            code_snippet=code_snippet,
+            error_type=error_type,
+            remediation=remediation,
+            educational_context=educational_context
+        )
+        self.warnings.append(warning)
+
+    def get_error_messages(self) -> List[str]:
+        """Get simple error messages for backward compatibility."""
+        return [error.message for error in self.errors]
+
+    def get_warning_messages(self) -> List[str]:
+        """Get simple warning messages for backward compatibility."""
+        return [warning.message for warning in self.warnings]
 
 
 @dataclass
@@ -81,21 +136,46 @@ class EnhancedAPIthonValidator:
             suggestions=[],
             resource_usage={},
             return_analysis={},
-            citation_compliance={}
+            citation_compliance={},
+            private_member_violations=[],
+            code_length_analysis={}
         )
 
         # Basic structural validation
         basic_errors = validate_script_step_structure(step)
-        result.errors.extend(basic_errors)
+        for error in basic_errors:
+            result.add_error(error, error_type="structural")
 
         if not step.code or not step.code.strip():
-            result.is_valid = False
+            result.add_error(
+                "Script code cannot be empty",
+                error_type="structural",
+                remediation="Add APIthon code to process data and return results",
+                educational_context="APIthon scripts must contain at least one statement to process data"
+            )
             return result
 
+        # Enhanced private member detection
+        self._detect_private_members(step.code, result)
+
+        # Enhanced code length validation
+        self._validate_enhanced_code_length(step.code, result)
+
+        # Large literal detection (optional warnings)
+        self._detect_large_literals(step.code, result)
+
         # Core APIthon validation with enhanced restrictions
-        result.errors.extend(self._enhanced_code_restrictions(step.code))
-        result.errors.extend(validate_apiton_syntax(step.code))
-        result.errors.extend(validate_apiton_data_references(step.code, available_data_paths))
+        core_errors = self._enhanced_code_restrictions(step.code)
+        for error in core_errors:
+            result.add_error(error, error_type="restriction")
+
+        syntax_errors = validate_apiton_syntax(step.code)
+        for error in syntax_errors:
+            result.add_error(error, error_type="syntax")
+
+        data_ref_errors = validate_apiton_data_references(step.code, available_data_paths)
+        for error in data_ref_errors:
+            result.add_error(error, error_type="data_reference")
 
         # Enhanced validations
         self._validate_resource_constraints(step.code, result)
@@ -106,6 +186,118 @@ class EnhancedAPIthonValidator:
         result.is_valid = len(result.errors) == 0
 
         return result
+
+    def _detect_private_members(self, code: str, result: APIthonValidationResult):
+        """
+        Enhanced private member detection with line number tracking.
+
+        Detects any identifiers starting with a single underscore (_) in user-provided APIthon code.
+        """
+        lines = code.split('\n')
+        private_violations = []
+
+        # Regex pattern to find private identifiers
+        private_pattern = r'\b_[a-zA-Z_][a-zA-Z0-9_]*\b'
+
+        for line_num, line in enumerate(lines, 1):
+            matches = re.finditer(private_pattern, line)
+            for match in matches:
+                identifier = match.group()
+                # Skip double underscores (dunder methods) as they're handled elsewhere
+                if not identifier.startswith('__'):
+                    violation = {
+                        'identifier': identifier,
+                        'line_number': line_num,
+                        'column': match.start(),
+                        'line_content': line.strip()
+                    }
+                    private_violations.append(violation)
+
+                    # Extract code snippet for context
+                    start_line = max(0, line_num - 2)
+                    end_line = min(len(lines), line_num + 1)
+                    code_snippet = '\n'.join(f"{i+1:3}: {lines[i]}" for i in range(start_line, end_line))
+
+                    result.add_error(
+                        f"Private identifier '{identifier}' detected on line {line_num}",
+                        line_number=line_num,
+                        error_type="private_member",
+                        code_snippet=code_snippet,
+                        remediation=f"Rename '{identifier}' to remove the leading underscore (e.g., '{identifier[1:]}')",
+                        educational_context="APIthon does not allow private identifiers (starting with _) as they are reserved for internal use"
+                    )
+
+        result.private_member_violations = private_violations
+
+    def _validate_enhanced_code_length(self, code: str, result: APIthonValidationResult):
+        """
+        Enhanced code length validation with precise byte counting and overage reporting.
+        """
+        code_bytes = len(code.encode('utf-8'))
+        result.code_length_analysis = {
+            'code_bytes': code_bytes,
+            'code_bytes_limit': self.constraints.max_code_bytes,
+            'percentage_used': (code_bytes / self.constraints.max_code_bytes) * 100,
+            'bytes_remaining': self.constraints.max_code_bytes - code_bytes
+        }
+
+        if code_bytes > self.constraints.max_code_bytes:
+            overage = code_bytes - self.constraints.max_code_bytes
+            result.add_error(
+                f"Script code exceeds maximum size: {code_bytes} bytes > {self.constraints.max_code_bytes} bytes (overage: {overage} bytes)",
+                error_type="code_length",
+                remediation="Consider simplifying the script, removing comments, or breaking it into multiple steps",
+                educational_context=f"APIthon scripts are limited to {self.constraints.max_code_bytes} bytes to ensure optimal performance"
+            )
+        elif code_bytes > self.constraints.max_code_bytes * 0.9:
+            result.add_warning(
+                f"Script code is approaching size limit: {code_bytes}/{self.constraints.max_code_bytes} bytes ({result.code_length_analysis['percentage_used']:.1f}%)",
+                error_type="code_length_warning",
+                remediation="Consider optimizing the script before adding more code",
+                educational_context="Scripts approaching the size limit may need optimization for better maintainability"
+            )
+
+    def _detect_large_literals(self, code: str, result: APIthonValidationResult):
+        """
+        Detect large string literals and data structures that might approach size limits.
+        """
+        try:
+            tree = ast.parse(code)
+            for node in ast.walk(tree):
+                # Check string literals
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    string_size = len(node.value.encode('utf-8'))
+                    if string_size > 1000:  # Warn for strings > 1KB
+                        result.add_warning(
+                            f"Large string literal detected: {string_size} bytes",
+                            line_number=getattr(node, 'lineno', None),
+                            error_type="large_literal",
+                            remediation="Consider breaking large strings into smaller parts or using external data sources",
+                            educational_context="Large string literals can impact script performance and readability"
+                        )
+
+                # Check list/dict literals
+                elif isinstance(node, (ast.List, ast.Dict)):
+                    # Estimate size based on number of elements
+                    if isinstance(node, ast.List) and len(node.elts) > 50:
+                        result.add_warning(
+                            f"Large list literal with {len(node.elts)} elements detected",
+                            line_number=getattr(node, 'lineno', None),
+                            error_type="large_literal",
+                            remediation="Consider processing data in smaller chunks or using iteration",
+                            educational_context="Large data structures may approach serialization limits"
+                        )
+                    elif isinstance(node, ast.Dict) and len(node.keys) > 50:
+                        result.add_warning(
+                            f"Large dictionary literal with {len(node.keys)} keys detected",
+                            line_number=getattr(node, 'lineno', None),
+                            error_type="large_literal",
+                            remediation="Consider processing data in smaller chunks or using iteration",
+                            educational_context="Large data structures may approach serialization limits"
+                        )
+        except SyntaxError:
+            # Syntax errors are handled elsewhere
+            pass
 
     def _enhanced_code_restrictions(self, code: str) -> List[str]:
         """
@@ -214,52 +406,90 @@ class EnhancedAPIthonValidator:
                 )
 
     def _analyze_return_value_logic(self, code: str, result: APIthonValidationResult):
-        """Analyze return value logic and detect common mistakes."""
+        """Enhanced return value logic analysis with intelligent parsing and guidance."""
         try:
             tree = ast.parse(code)
             statements = tree.body
 
             if not statements:
-                result.errors.append("Script must contain at least one statement")
+                result.add_error(
+                    "Script must contain at least one statement",
+                    error_type="return_logic",
+                    remediation="Add at least one statement to process data",
+                    educational_context="APIthon scripts need statements to process data and produce output"
+                )
                 return
 
             last_statement = statements[-1]
+            last_line_num = getattr(last_statement, 'lineno', len(code.split('\n')))
+
             result.return_analysis['has_explicit_return'] = isinstance(last_statement, ast.Return)
             result.return_analysis['last_statement_type'] = type(last_statement).__name__
+            result.return_analysis['statement_count'] = len(statements)
+            result.return_analysis['last_line_number'] = last_line_num
 
-            # Check for common return value mistakes
+            # Enhanced analysis for different statement types
             if isinstance(last_statement, ast.Assign):
                 # Last line is an assignment - likely mistake
                 if hasattr(last_statement, 'targets') and last_statement.targets:
                     target = last_statement.targets[0]
                     if isinstance(target, ast.Name):
                         var_name = target.id
-                        result.warnings.append(
-                            f"Last line assigns to variable '{var_name}' but doesn't return it. "
-                            f"Consider adding 'return {var_name}' or change to '{var_name}' (expression)."
+                        result.add_warning(
+                            f"Last line assigns to variable '{var_name}' but doesn't return it",
+                            line_number=last_line_num,
+                            error_type="return_logic",
+                            remediation=f"Add 'return {var_name}' as the final line, or change to '{var_name}' (expression)",
+                            educational_context="APIthon uses the result of the final expression as the output_key value. Assignments don't return values."
                         )
                         result.suggestions.append(f"Add 'return {var_name}' as the final line")
                         result.suggestions.append(f"Or change the last line to just '{var_name}' (without assignment)")
+                        result.suggestions.append("Example: Instead of 'result = data.value * 2', use 'data.value * 2' or 'return data.value * 2'")
 
             elif isinstance(last_statement, ast.Expr):
                 # Check if it's a method call that returns None
                 if isinstance(last_statement.value, ast.Call):
-                    self._check_none_returning_calls(last_statement.value, result)
+                    self._check_none_returning_calls(last_statement.value, result, last_line_num)
+                else:
+                    # Good - expression that will return a value
+                    result.return_analysis['returns_value'] = True
+
+            elif isinstance(last_statement, ast.Return):
+                # Explicit return - good practice
+                result.return_analysis['returns_value'] = True
+                result.return_analysis['explicit_return'] = True
+
+            elif isinstance(last_statement, (ast.If, ast.For, ast.While)):
+                # Control flow as last statement - might not return value
+                result.add_warning(
+                    f"Script ends with {type(last_statement).__name__} statement which may not return a value",
+                    line_number=last_line_num,
+                    error_type="return_logic",
+                    remediation="Add a return statement or expression after the control flow",
+                    educational_context="Control flow statements don't return values. Ensure your script ends with an expression or return statement."
+                )
 
             # Check for missing return when script has multiple statements
-            if len(statements) > 1 and not isinstance(last_statement, ast.Return):
-                if not isinstance(last_statement, ast.Expr):
-                    result.warnings.append(
-                        "Multi-statement script should end with a return statement or expression. "
-                        "The output_key will receive the result of the final expression."
-                    )
-                    result.suggestions.append("Add a return statement or ensure the last line is an expression")
+            if len(statements) > 1 and not isinstance(last_statement, (ast.Return, ast.Expr)):
+                result.add_warning(
+                    "Multi-statement script should end with a return statement or expression",
+                    line_number=last_line_num,
+                    error_type="return_logic",
+                    remediation="Add a return statement or ensure the last line is an expression",
+                    educational_context="The output_key will receive the result of the final expression. Statements like assignments don't produce output."
+                )
+
+            # Provide educational examples based on script complexity
+            if len(statements) == 1:
+                result.suggestions.append("Single-statement example: 'data.user_info.name.upper()' returns the uppercase name")
+            else:
+                result.suggestions.append("Multi-statement example: Process data in multiple lines, then 'return final_result' or just 'final_result'")
 
         except SyntaxError:
             # Syntax errors are handled elsewhere
             pass
 
-    def _check_none_returning_calls(self, call_node: ast.Call, result: APIthonValidationResult):
+    def _check_none_returning_calls(self, call_node: ast.Call, result: APIthonValidationResult, line_number: int = None):
         """Check for method calls that return None (in-place operations)."""
         none_returning_methods = {
             'append', 'extend', 'insert', 'remove', 'pop', 'clear', 'sort', 'reverse',
@@ -269,18 +499,28 @@ class EnhancedAPIthonValidator:
         if isinstance(call_node.func, ast.Attribute):
             method_name = call_node.func.attr
             if method_name in none_returning_methods:
-                result.warnings.append(
-                    f"Method '{method_name}()' returns None and may not provide the expected output. "
-                    f"Consider using the modified object directly instead."
+                result.add_warning(
+                    f"Method '{method_name}()' returns None and may not provide the expected output",
+                    line_number=line_number,
+                    error_type="return_logic",
+                    remediation=f"Use the modified object directly instead of the '{method_name}()' method call",
+                    educational_context=f"The '{method_name}()' method modifies the object in-place and returns None, not the modified object"
                 )
 
                 # Provide specific suggestions based on method
                 if method_name in ['append', 'extend', 'insert']:
                     result.suggestions.append("Use the list variable after modification instead of the method call")
+                    result.suggestions.append(f"Example: Instead of 'my_list.{method_name}(item)', use 'my_list.{method_name}(item); my_list'")
                 elif method_name == 'update':
                     result.suggestions.append("Use the dictionary variable after update instead of the method call")
+                    result.suggestions.append("Example: Instead of 'my_dict.update(data)', use 'my_dict.update(data); my_dict'")
                 elif method_name in ['sort', 'reverse']:
                     result.suggestions.append("Use sorted() or reversed() functions, or the list variable after modification")
+                    result.suggestions.append(f"Example: Use 'sorted(my_list)' instead of 'my_list.{method_name}()'")
+                elif method_name in ['remove', 'pop']:
+                    result.suggestions.append("These methods modify the list. Use the list variable after modification if you need the result")
+                elif method_name == 'clear':
+                    result.suggestions.append("This method empties the container. Use an empty literal instead if you need an empty result")
 
     def _validate_citation_compliance(self, step: ScriptStep, result: APIthonValidationResult):
         """Validate citation compliance for reserved output_key names."""
