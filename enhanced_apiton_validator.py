@@ -22,7 +22,7 @@ from apiton_validator import (
 
 @dataclass
 class ValidationError:
-    """Detailed validation error with location and context information."""
+    """Enhanced validation error with comprehensive location and context information."""
     message: str
     line_number: Optional[int] = None
     column_number: Optional[int] = None
@@ -30,6 +30,47 @@ class ValidationError:
     error_type: str = "general"
     remediation: Optional[str] = None
     educational_context: Optional[str] = None
+    step_number: Optional[int] = None
+    step_type: Optional[str] = None
+    field_name: Optional[str] = None
+    severity: str = "error"  # error, warning, info
+    auto_fix_available: bool = False
+    auto_fix_data: Optional[Dict[str, Any]] = None
+
+    def get_location_string(self) -> str:
+        """Get a formatted location string for the error."""
+        parts = []
+
+        if self.step_number is not None:
+            parts.append(f"Step {self.step_number}")
+
+        if self.step_type:
+            parts.append(f"({self.step_type})")
+
+        if self.field_name:
+            parts.append(f"→ {self.field_name}")
+
+        if self.line_number is not None:
+            parts.append(f"line {self.line_number}")
+
+        return " ".join(parts) if parts else "Unknown location"
+
+    def get_formatted_message(self) -> str:
+        """Get a fully formatted error message with location and context."""
+        location = self.get_location_string()
+
+        formatted = f"{location}: {self.message}"
+
+        if self.educational_context:
+            formatted += f"\n  Why: {self.educational_context}"
+
+        if self.remediation:
+            formatted += f"\n  Fix: {self.remediation}"
+
+        if self.auto_fix_available:
+            formatted += "\n  ⚡ Auto-fix available"
+
+        return formatted
 
 
 @dataclass
@@ -65,7 +106,10 @@ class APIthonValidationResult:
 
     def add_error(self, message: str, line_number: Optional[int] = None,
                   error_type: str = "general", remediation: Optional[str] = None,
-                  educational_context: Optional[str] = None, code_snippet: Optional[str] = None):
+                  educational_context: Optional[str] = None, code_snippet: Optional[str] = None,
+                  step_number: Optional[int] = None, step_type: Optional[str] = None,
+                  field_name: Optional[str] = None, severity: str = "error",
+                  auto_fix_available: bool = False, auto_fix_data: Optional[Dict[str, Any]] = None):
         """Add a detailed error to the validation result."""
         error = ValidationError(
             message=message,
@@ -73,14 +117,23 @@ class APIthonValidationResult:
             code_snippet=code_snippet,
             error_type=error_type,
             remediation=remediation,
-            educational_context=educational_context
+            educational_context=educational_context,
+            step_number=step_number,
+            step_type=step_type,
+            field_name=field_name,
+            severity=severity,
+            auto_fix_available=auto_fix_available,
+            auto_fix_data=auto_fix_data
         )
         self.errors.append(error)
         self.is_valid = False
 
     def add_warning(self, message: str, line_number: Optional[int] = None,
                     error_type: str = "warning", remediation: Optional[str] = None,
-                    educational_context: Optional[str] = None, code_snippet: Optional[str] = None):
+                    educational_context: Optional[str] = None, code_snippet: Optional[str] = None,
+                    step_number: Optional[int] = None, step_type: Optional[str] = None,
+                    field_name: Optional[str] = None, auto_fix_available: bool = False,
+                    auto_fix_data: Optional[Dict[str, Any]] = None):
         """Add a detailed warning to the validation result."""
         warning = ValidationError(
             message=message,
@@ -88,7 +141,13 @@ class APIthonValidationResult:
             code_snippet=code_snippet,
             error_type=error_type,
             remediation=remediation,
-            educational_context=educational_context
+            educational_context=educational_context,
+            step_number=step_number,
+            step_type=step_type,
+            field_name=field_name,
+            severity="warning",
+            auto_fix_available=auto_fix_available,
+            auto_fix_data=auto_fix_data
         )
         self.warnings.append(warning)
 

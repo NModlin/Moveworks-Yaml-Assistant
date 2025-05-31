@@ -45,43 +45,97 @@ class TutorialOverlay(QWidget):
         self.target_widget = None
         self.target_rect = QRect()
 
-        # Create instruction panel
+        # Create instruction panel with better sizing
         self.instruction_panel = QFrame(self)
+        self.instruction_panel.setMinimumSize(350, 200)
+        self.instruction_panel.setMaximumSize(500, 400)
         self.instruction_panel.setStyleSheet("""
             QFrame {
-                background-color: rgba(255, 255, 255, 0.95);
-                border: 2px solid #2196F3;
-                border-radius: 8px;
-                padding: 10px;
+                background-color: rgba(255, 255, 255, 0.98);
+                border: 3px solid #2196F3;
+                border-radius: 12px;
+                padding: 15px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            }
+            QLabel {
+                color: #2c3e50;
+                font-size: 13px;
+                line-height: 1.4;
+            }
+            QPushButton {
+                background-color: #3498db;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                font-size: 12px;
+                font-weight: 600;
+                min-height: 20px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
             }
         """)
 
         panel_layout = QVBoxLayout(self.instruction_panel)
+        panel_layout.setContentsMargins(15, 15, 15, 15)
+        panel_layout.setSpacing(12)
 
         # Step title
         self.step_title = QLabel()
-        self.step_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #1976D2;")
+        self.step_title.setStyleSheet("""
+            font-weight: bold;
+            font-size: 16px;
+            color: #1976D2;
+            margin-bottom: 8px;
+        """)
+        self.step_title.setWordWrap(True)
         panel_layout.addWidget(self.step_title)
 
         # Step description
         self.step_description = QLabel()
         self.step_description.setWordWrap(True)
-        self.step_description.setStyleSheet("color: #333; margin: 5px 0;")
+        self.step_description.setStyleSheet("""
+            color: #2c3e50;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 8px 0px;
+        """)
         panel_layout.addWidget(self.step_description)
+
+        # Add some stretch to push buttons to bottom
+        panel_layout.addStretch()
 
         # Action buttons
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(8)
 
         self.skip_button = QPushButton("Skip")
         self.skip_button.clicked.connect(self.step_completed.emit)
         button_layout.addWidget(self.skip_button)
 
+        button_layout.addStretch()  # Push buttons apart
+
         self.next_button = QPushButton("Next")
         self.next_button.clicked.connect(self.step_completed.emit)
+        self.next_button.setDefault(True)
         button_layout.addWidget(self.next_button)
 
-        self.cancel_button = QPushButton("Cancel Tutorial")
+        self.cancel_button = QPushButton("Cancel")
         self.cancel_button.clicked.connect(self.tutorial_cancelled.emit)
+        self.cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: #ffffff;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         button_layout.addWidget(self.cancel_button)
 
         panel_layout.addLayout(button_layout)
@@ -181,7 +235,74 @@ class TutorialDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Interactive Tutorials")
         self.setModal(True)
-        self.resize(600, 400)
+
+        # Set minimum size and make it resizable
+        self.setMinimumSize(700, 500)
+        self.resize(800, 600)
+
+        # Apply enhanced styling for better readability
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                color: #2c3e50;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                font-size: 13px;
+            }
+            QLabel {
+                color: #2c3e50;
+                font-size: 14px;
+                font-weight: 500;
+            }
+            QListWidget {
+                background-color: #ffffff;
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 13px;
+                color: #2c3e50;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #ecf0f1;
+                font-size: 13px;
+                color: #2c3e50;
+            }
+            QListWidget::item:selected {
+                background-color: #3498db;
+                color: #ffffff;
+                border-radius: 4px;
+            }
+            QListWidget::item:hover {
+                background-color: #ebf3fd;
+                color: #2c3e50;
+            }
+            QTextEdit {
+                background-color: #f8f9fa;
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                padding: 12px;
+                font-size: 13px;
+                color: #2c3e50;
+                line-height: 1.4;
+            }
+            QPushButton {
+                background-color: #3498db;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 20px;
+                font-size: 13px;
+                font-weight: 600;
+                min-height: 20px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+            }
+        """)
 
         self.tutorials = {}
         self._setup_ui()
@@ -190,28 +311,46 @@ class TutorialDialog(QDialog):
     def _setup_ui(self):
         """Setup the tutorial selection UI."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
         # Header
         header_label = QLabel("Choose a Tutorial")
-        header_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        header_label.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding: 10px 0px;
+        """)
         layout.addWidget(header_label)
 
-        # Tutorial list
+        # Tutorial list with better sizing
         self.tutorial_list = QListWidget()
         self.tutorial_list.itemDoubleClicked.connect(self._start_selected_tutorial)
+        self.tutorial_list.setMinimumHeight(200)
         layout.addWidget(self.tutorial_list)
 
-        # Tutorial description
+        # Tutorial description with better sizing
+        description_label = QLabel("Tutorial Description:")
+        description_label.setStyleSheet("font-weight: bold; color: #2c3e50; margin-top: 10px;")
+        layout.addWidget(description_label)
+
         self.description_text = QTextEdit()
-        self.description_text.setMaximumHeight(100)
+        self.description_text.setMinimumHeight(120)
+        self.description_text.setMaximumHeight(180)
         self.description_text.setReadOnly(True)
+        self.description_text.setPlaceholderText("Select a tutorial to see its description...")
         layout.addWidget(self.description_text)
 
-        # Buttons
+        # Buttons with better spacing
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
+        button_layout.addStretch()  # Push buttons to the right
 
         start_button = QPushButton("Start Tutorial")
         start_button.clicked.connect(self._start_selected_tutorial)
+        start_button.setDefault(True)  # Make it the default button
         button_layout.addWidget(start_button)
 
         cancel_button = QPushButton("Cancel")

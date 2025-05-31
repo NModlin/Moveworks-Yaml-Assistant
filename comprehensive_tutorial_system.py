@@ -269,157 +269,542 @@ class ComprehensiveTutorialSystem:
     def _initialize_tutorials(self):
         """Initialize all available tutorials."""
         
-        # Beginner Tutorial: Your First Workflow
-        first_workflow_tutorial = Tutorial(
-            id="first_workflow",
-            title="Your First Workflow",
-            description="Learn to create a simple user lookup workflow step by step",
+        # Module 1: Your First Compound Action - Simple Lookup and Notification
+        module_1_tutorial = Tutorial(
+            id="module_1_basic_compound_action",
+            title="Module 1: Your First Compound Action",
+            description="Learn to create basic compound actions with lookup and notification",
             category=TutorialCategory.GETTING_STARTED,
             difficulty=TutorialDifficulty.BEGINNER,
-            estimated_time="10 minutes",
+            estimated_time="15 minutes",
             learning_objectives=[
-                "Create action and script steps",
-                "Configure input arguments",
-                "Provide JSON output examples",
-                "Validate and export workflows"
+                "Understand basic compound action structure and YAML compliance",
+                "Create your first action step with proper data flow",
+                "Use the JSON Path Selector for basic data selection",
+                "Generate compliant YAML with mandatory action_name and steps fields",
+                "Validate workflow using the built-in compliance system"
             ],
             steps=[
                 TutorialStep(
-                    title="Welcome to Your First Workflow",
-                    description="Introduction to workflow creation",
-                    instruction="Welcome! This tutorial will guide you through creating your first Moveworks workflow. We'll build a simple user lookup workflow that demonstrates the core concepts.",
+                    title="Welcome to Compound Actions",
+                    description="Introduction to Moveworks compound actions",
+                    instruction="Welcome! This tutorial teaches you to create Moveworks compound actions. We'll build an employee onboarding notification system that demonstrates data lookup and notification patterns. Click 'Next' to begin.",
                     action_type="info"
                 ),
                 TutorialStep(
-                    title="Add Your First Action Step",
-                    description="Create an action step",
-                    instruction="Click the 'Add Action Step' button in the left panel to create your first workflow step.",
+                    title="Set Compound Action Name",
+                    description="Every compound action needs a unique name",
+                    instruction="In the 'Compound Action Name' field at the top, enter 'employee_welcome_notification'. This becomes the top-level action_name in your YAML.",
+                    target_element="compound_action_name_field",
+                    action_type="type",
+                    action_data={"text": "employee_welcome_notification"}
+                ),
+                TutorialStep(
+                    title="Add First Action Step",
+                    description="Create user lookup action",
+                    instruction="Click 'Add Step' → 'Action Step' to create your first workflow step. This will look up user information by email.",
                     target_element="add_action_button",
                     action_type="click"
                 ),
                 TutorialStep(
-                    title="Configure the Action",
-                    description="Set up action properties",
-                    instruction="Now configure your action step:<br>1. Set Action Name to 'mw.get_user_by_email'<br>2. Set Output Key to 'user_info'<br>3. Add a description",
+                    title="Configure User Lookup Action",
+                    description="Set up the user lookup",
+                    instruction="Set Action Name: 'mw.get_user_by_email', Output Key: 'user_info'. In Input Args, add key 'email' with value 'data.input_email'.",
                     target_element="action_config_panel",
-                    action_type="info"
+                    action_type="info",
+                    action_data={
+                        "action_name": "mw.get_user_by_email",
+                        "output_key": "user_info",
+                        "input_args": {"email": "data.input_email"}
+                    }
                 ),
                 TutorialStep(
-                    title="Add Input Arguments",
-                    description="Configure action inputs",
-                    instruction="Add an input argument:<br>1. Click 'Add Argument'<br>2. Set Key to 'email'<br>3. Set Value to 'data.input_email'",
-                    target_element="input_args_section",
-                    action_type="info"
+                    title="Add Sample JSON Output",
+                    description="Provide sample response data",
+                    instruction="In the 'User Provided JSON Output' field, add sample user data. This enables the JSON Path Selector for subsequent steps.",
+                    target_element="json_output_field",
+                    action_type="copy_paste",
+                    action_data={
+                        "text": '{"user": {"id": "emp_12345", "name": "John Doe", "email": "john.doe@company.com", "department": "Engineering", "manager": {"id": "mgr_67890", "name": "Jane Smith", "email": "jane.smith@company.com"}, "active": true}}'
+                    }
                 ),
                 TutorialStep(
-                    title="Provide JSON Output",
-                    description="Add example output",
-                    instruction="Scroll down to the JSON Output section and paste the example JSON that shows what this action will return. This enables data mapping in later steps.",
-                    target_element="json_output_section",
-                    action_type="info"
-                ),
-                TutorialStep(
-                    title="Add a Script Step",
-                    description="Create a processing step",
-                    instruction="Now add a script step to process the user data. Click 'Add Script Step' in the left panel.",
-                    target_element="add_script_button",
+                    title="Open JSON Path Selector",
+                    description="Explore available data paths",
+                    instruction="Click 'Tools' → 'JSON Path Selector' to open the data explorer. Select 'Step 1: user_info' to see available data paths like data.user_info.user.manager.email.",
+                    target_element="json_path_selector_button",
                     action_type="click"
                 ),
                 TutorialStep(
-                    title="Write Script Code",
-                    description="Add processing logic",
-                    instruction="Write APIthon code to process the user data and create a welcome message. Remember to include a 'return' statement.",
-                    target_element="script_code_editor",
-                    action_type="info"
-                ),
-                TutorialStep(
-                    title="Validate Your Workflow",
-                    description="Check for errors",
-                    instruction="Look at the validation panel on the right. It should show green if everything is configured correctly. Fix any red errors that appear.",
-                    target_element="validation_panel",
-                    action_type="info"
-                ),
-                TutorialStep(
-                    title="Preview the YAML",
-                    description="See the generated output",
-                    instruction="Click the 'YAML Preview' tab to see the generated YAML. This is what will be deployed to Moveworks.",
-                    target_element="yaml_preview_tab",
+                    title="Add Notification Action",
+                    description="Create manager notification",
+                    instruction="Add another Action Step with Action Name: 'mw.send_notification', Output Key: 'notification_result'. Use the JSON Path Selector to set recipient to manager's email.",
+                    target_element="add_action_button",
                     action_type="click"
                 ),
                 TutorialStep(
-                    title="Congratulations!",
-                    description="Tutorial complete",
-                    instruction="You've successfully created your first Moveworks workflow! You can now export it as YAML or save the project for later editing.",
+                    title="Configure Notification Details",
+                    description="Set up the notification",
+                    instruction="In Input Args, add 'recipient': 'data.user_info.user.manager.email' and 'message': 'Welcome to the team! Please reach out to help onboard our new team member.'",
+                    target_element="action_config_panel",
+                    action_type="info",
+                    action_data={
+                        "action_name": "mw.send_notification",
+                        "output_key": "notification_result",
+                        "input_args": {
+                            "recipient": "data.user_info.user.manager.email",
+                            "message": "Welcome to the team! Please reach out to help onboard our new team member."
+                        }
+                    }
+                ),
+                TutorialStep(
+                    title="Validate Compliance",
+                    description="Check Moveworks compliance",
+                    instruction="Click 'Validate' to ensure your workflow meets all Moveworks requirements. Look for green validation status and proper DSL string quoting.",
+                    target_element="validate_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Review Generated YAML",
+                    description="Examine the complete workflow",
+                    instruction="Check the YAML Preview panel. Notice the mandatory compound action structure with action_name at top level and steps array containing your workflow logic.",
+                    target_element="yaml_preview_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Module 1 Complete!",
+                    description="First compound action created",
+                    instruction="Congratulations! You've created your first Moveworks compound action with proper data flow and validation. Ready for Module 2: IT Automation?",
                     action_type="info"
                 )
             ]
         )
         
-        # Intermediate Tutorial: Expression Types
-        expression_types_tutorial = Tutorial(
-            id="expression_types",
-            title="Master All Expression Types",
-            description="Learn to use all 8 Moveworks expression types effectively",
+        # Module 2: IT Automation - ServiceNow/Jira Ticket Creation
+        module_2_tutorial = Tutorial(
+            id="module_2_it_automation",
+            title="Module 2: IT Automation",
+            description="ServiceNow/Jira ticket creation with cURL import and parameterization",
             category=TutorialCategory.EXPRESSION_TYPES,
             difficulty=TutorialDifficulty.INTERMEDIATE,
-            estimated_time="25 minutes",
-            prerequisites=["first_workflow"],
+            estimated_time="20 minutes",
+            prerequisites=["module_1_basic_compound_action"],
             learning_objectives=[
-                "Understand all 8 expression types",
-                "Use control flow expressions",
-                "Handle errors with try_catch",
-                "Create parallel workflows"
+                "Import and convert cURL commands to action steps",
+                "Use parameterization with {{{VARIABLES}}} for dynamic values",
+                "Leverage the template library for common IT automation patterns",
+                "Configure delay settings and progress updates for user experience",
+                "Handle complex input arguments with nested data structures"
             ],
             steps=[
                 TutorialStep(
-                    title="Expression Types Overview",
-                    description="Introduction to expression types",
-                    instruction="Moveworks supports 8 expression types: action, script, switch, for, parallel, return, raise, and try_catch. Each serves a specific purpose in workflow automation.",
+                    title="Welcome to IT Automation",
+                    description="Introduction to enterprise IT automation",
+                    instruction="Welcome to Module 2! We'll build an automated incident response system that creates tickets in both ServiceNow and Jira when critical alerts are triggered. This demonstrates enterprise IT automation with multiple system integration.",
                     action_type="info"
                 ),
                 TutorialStep(
-                    title="Switch Expression",
-                    description="Conditional branching",
-                    instruction="Let's add a switch expression to handle different user types. This allows conditional logic in your workflow.",
+                    title="Set Compound Action Name",
+                    description="Name your IT automation workflow",
+                    instruction="Set the compound action name to 'critical_alert_incident_response'. This workflow will handle critical system alerts automatically.",
+                    target_element="compound_action_name_field",
+                    action_type="type",
+                    action_data={"text": "critical_alert_incident_response"}
+                ),
+                TutorialStep(
+                    title="Import ServiceNow cURL Command",
+                    description="Convert cURL to action step",
+                    instruction="Click 'Import' → 'From cURL' to import a ServiceNow API call. This feature automatically converts cURL commands to properly formatted action steps.",
+                    target_element="import_curl_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Configure ServiceNow Action",
+                    description="Set up ServiceNow incident creation",
+                    instruction="Configure the ServiceNow action with parameterized values: Action Name: 'http_request', Output Key: 'servicenow_incident'. Use {{{SERVICENOW_TOKEN}}} for authentication and {{{ALERT_TITLE}}} for dynamic content.",
+                    target_element="action_config_panel",
+                    action_type="info",
+                    action_data={
+                        "action_name": "http_request",
+                        "output_key": "servicenow_incident",
+                        "parameterization": True
+                    }
+                ),
+                TutorialStep(
+                    title="Add Progress Updates",
+                    description="Enhance user experience",
+                    instruction="In the action configuration, add progress updates: On Pending: 'Creating ServiceNow incident...', On Complete: 'ServiceNow incident created successfully'. Also set delay_seconds to 5.",
+                    target_element="progress_updates_section",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Add Sample ServiceNow Response",
+                    description="Enable data path selection",
+                    instruction="Add sample JSON output showing a ServiceNow incident response. This enables the JSON Path Selector for linking to subsequent steps.",
+                    target_element="json_output_field",
+                    action_type="copy_paste",
+                    action_data={
+                        "text": '{"result": {"sys_id": "abc123def456", "number": "INC0012345", "short_description": "Critical Database Connection Failure", "state": "1", "urgency": "1", "priority": "1"}}'
+                    }
+                ),
+                TutorialStep(
+                    title="Use Template Library for Jira",
+                    description="Leverage pre-built patterns",
+                    instruction="Click 'Templates' → 'IT Automation' → 'Jira Issue Creation' to add a pre-configured Jira integration step. Templates provide tested patterns for common scenarios.",
+                    target_element="template_library_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Link ServiceNow and Jira Data",
+                    description="Cross-system data integration",
+                    instruction="Use the JSON Path Selector to reference ServiceNow data in the Jira step. Set the Jira description to include 'data.servicenow_incident.result.number' for cross-system tracking.",
+                    target_element="json_path_selector_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Add Notification Step",
+                    description="Complete the automation chain",
+                    instruction="Add a final Slack notification step that includes both ServiceNow and Jira references. Use template formatting for consistent messaging across your organization.",
+                    target_element="add_action_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Validate Multi-System Workflow",
+                    description="Ensure enterprise compliance",
+                    instruction="Run validation to check parameterization, data references, and API configurations. Look for proper {{{VARIABLE}}} usage and correct data.* references.",
+                    target_element="validate_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Module 2 Complete!",
+                    description="IT automation mastered",
+                    instruction="Excellent! You've built an enterprise-grade IT automation workflow with multi-system integration, parameterization, and proper error handling. Ready for Module 3: Conditional Logic?",
+                    action_type="info"
+                )
+            ]
+        )
+        
+        # Module 3: Conditional Logic - Approval Routing with Switch Statements
+        module_3_tutorial = Tutorial(
+            id="module_3_conditional_logic",
+            title="Module 3: Conditional Logic",
+            description="Approval routing with switch statements and complex business logic",
+            category=TutorialCategory.EXPRESSION_TYPES,
+            difficulty=TutorialDifficulty.INTERMEDIATE,
+            estimated_time="18 minutes",
+            prerequisites=["module_2_it_automation"],
+            learning_objectives=[
+                "Create switch expressions for conditional workflow branching",
+                "Use conditional data mapping with complex business logic",
+                "Implement SwitchStep class with multiple cases and default handling",
+                "Handle nested conditional flows and data validation",
+                "Integrate switch logic with the compliance validation system"
+            ],
+            steps=[
+                TutorialStep(
+                    title="Welcome to Conditional Logic",
+                    description="Introduction to switch expressions",
+                    instruction="Welcome to Module 3! We'll build an expense approval routing system that automatically routes expenses based on amount and employee level. This demonstrates complex conditional logic with multiple decision points.",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Set Compound Action Name",
+                    description="Name your conditional workflow",
+                    instruction="Set the compound action name to 'expense_approval_routing'. This workflow will automatically route expense approvals based on business rules.",
+                    target_element="compound_action_name_field",
+                    action_type="type",
+                    action_data={"text": "expense_approval_routing"}
+                ),
+                TutorialStep(
+                    title="Add Expense Validation Step",
+                    description="Create data validation action",
+                    instruction="Add an action step with Action Name: 'mw.validate_expense_submission', Output Key: 'expense_validation'. This will validate and enrich the expense data.",
+                    target_element="add_action_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Add Sample Expense Data",
+                    description="Provide comprehensive test data",
+                    instruction="Add sample JSON showing expense and employee data. This complex data structure will demonstrate nested data access in switch conditions.",
+                    target_element="json_output_field",
+                    action_type="copy_paste",
+                    action_data={
+                        "text": '{"expense": {"id": "EXP-2024-001", "amount": 750.00, "category": "Travel"}, "employee": {"id": "emp_12345", "name": "John Doe", "department": "Sales", "level": "senior", "manager_id": "mgr_67890", "director_id": "dir_11111"}, "validation": {"is_valid": true, "receipt_verified": true, "policy_compliant": true}}'
+                    }
+                ),
+                TutorialStep(
+                    title="Add Switch Expression",
+                    description="Create conditional branching logic",
+                    instruction="Click 'Add Step' → 'Switch Step' to add conditional logic. Set description: 'Route approval based on expense amount and employee level', Output Key: 'approval_routing'.",
                     target_element="add_switch_button",
                     action_type="click"
                 ),
-                # Additional steps would be added here...
+                TutorialStep(
+                    title="Configure Auto-Approval Case",
+                    description="Set up first conditional case",
+                    instruction="Add a case with condition: 'data.expense_validation.expense.amount < 100 && data.expense_validation.validation.is_valid == true'. Add an auto-approval action step.",
+                    target_element="switch_case_config",
+                    action_type="info",
+                    action_data={
+                        "condition": "data.expense_validation.expense.amount < 100 && data.expense_validation.validation.is_valid == true",
+                        "case_type": "auto_approval"
+                    }
+                ),
+                TutorialStep(
+                    title="Configure Manager Approval Case",
+                    description="Add manager approval logic",
+                    instruction="Add a second case for manager approval: 'data.expense_validation.expense.amount >= 100 && data.expense_validation.expense.amount <= 1000'. Add manager notification action.",
+                    target_element="switch_case_config",
+                    action_type="info",
+                    action_data={
+                        "condition": "data.expense_validation.expense.amount >= 100 && data.expense_validation.expense.amount <= 1000",
+                        "case_type": "manager_approval"
+                    }
+                ),
+                TutorialStep(
+                    title="Configure Default Case",
+                    description="Handle high-value expenses",
+                    instruction="Add a default case for expenses over $1000 that require director approval. Default cases handle all scenarios not covered by specific conditions.",
+                    target_element="switch_default_config",
+                    action_type="info",
+                    action_data={
+                        "case_type": "director_approval",
+                        "escalation_reason": "Amount exceeds $1000 threshold"
+                    }
+                ),
+                TutorialStep(
+                    title="Test Complex Conditions",
+                    description="Validate boolean logic",
+                    instruction="Use the validation panel to test your switch conditions. The system checks for proper DSL syntax, boolean operators (&&, ||), and data path accuracy.",
+                    target_element="validate_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Review Switch YAML Structure",
+                    description="Understand conditional YAML",
+                    instruction="Examine the YAML preview to see how switch expressions are structured with cases, conditions, and default blocks. Notice the proper nesting and data references.",
+                    target_element="yaml_preview_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Module 3 Complete!",
+                    description="Conditional logic mastered",
+                    instruction="Outstanding! You've built a sophisticated approval routing system with complex conditional logic. Ready for Module 4: Data Processing with APIthon scripts?",
+                    action_type="info"
+                )
             ]
         )
         
-        # Advanced Tutorial: Enhanced Features
-        enhanced_features_tutorial = Tutorial(
-            id="enhanced_features",
-            title="Enhanced Features Deep Dive",
-            description="Master the advanced features like JSON Path Selector and Template Library",
-            category=TutorialCategory.ENHANCED_FEATURES,
-            difficulty=TutorialDifficulty.ADVANCED,
-            estimated_time="30 minutes",
-            prerequisites=["first_workflow", "expression_types"],
+        # Module 4: Data Processing - List Handling with Script Steps
+        module_4_tutorial = Tutorial(
+            id="module_4_data_processing",
+            title="Module 4: Data Processing",
+            description="List handling with script steps and APIthon validation",
+            category=TutorialCategory.DATA_HANDLING,
+            difficulty=TutorialDifficulty.INTERMEDIATE,
+            estimated_time="22 minutes",
+            prerequisites=["module_3_conditional_logic"],
             learning_objectives=[
-                "Use the JSON Path Selector effectively",
-                "Leverage the Template Library",
-                "Apply contextual examples",
-                "Optimize with enhanced validation"
+                "Create script expressions for complex data manipulation",
+                "Handle list processing and array transformations",
+                "Implement APIthon validation with 4096-byte limits",
+                "Use return value validation and educational guidance",
+                "Process complex data structures with proper error handling"
             ],
             steps=[
                 TutorialStep(
-                    title="JSON Path Selector",
-                    description="Visual data selection",
-                    instruction="The JSON Path Selector lets you visually browse and select data from previous steps. Let's explore this powerful feature.",
-                    target_element="json_path_selector",
+                    title="Welcome to Data Processing",
+                    description="Introduction to APIthon scripts",
+                    instruction="Welcome to Module 4! We'll build an employee performance report generation system that processes lists of employee data, calculates statistics, and generates formatted reports. This demonstrates complex data processing with APIthon scripts.",
                     action_type="info"
                 ),
-                # Additional steps would be added here...
+                TutorialStep(
+                    title="Set Compound Action Name",
+                    description="Name your data processing workflow",
+                    instruction="Set the compound action name to 'employee_performance_analysis'. This workflow will process employee performance data and generate analytics.",
+                    target_element="compound_action_name_field",
+                    action_type="type",
+                    action_data={"text": "employee_performance_analysis"}
+                ),
+                TutorialStep(
+                    title="Add Data Retrieval Step",
+                    description="Get employee performance data",
+                    instruction="Add an action step with Action Name: 'mw.get_employee_performance_data', Output Key: 'employee_data'. This will retrieve the list of employees to process.",
+                    target_element="add_action_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Add Sample Employee List",
+                    description="Provide complex array data",
+                    instruction="Add sample JSON with multiple employees and performance metrics. This demonstrates list processing capabilities.",
+                    target_element="json_output_field",
+                    action_type="copy_paste",
+                    action_data={
+                        "text": '{"employees": [{"id": "emp_001", "name": "Alice Johnson", "department": "Engineering", "performance_score": 92, "goals_completed": 8, "goals_total": 10}, {"id": "emp_002", "name": "Bob Smith", "department": "Engineering", "performance_score": 78, "goals_completed": 6, "goals_total": 10}, {"id": "emp_003", "name": "Carol Davis", "department": "Engineering", "performance_score": 95, "goals_completed": 10, "goals_total": 10}], "metadata": {"total_count": 3, "department": "Engineering", "report_period": "Q4 2024"}}'
+                    }
+                ),
+                TutorialStep(
+                    title="Add Performance Analysis Script",
+                    description="Create data processing script",
+                    instruction="Click 'Add Step' → 'Script Step' to add APIthon code. Set Output Key: 'performance_analysis'. We'll write code to calculate statistics and identify top performers.",
+                    target_element="add_script_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Write APIthon Processing Code",
+                    description="Implement list processing logic",
+                    instruction="Write APIthon code using list comprehensions, aggregation functions, and data transformations. Remember the 4096-byte limit and include a return statement.",
+                    target_element="script_code_editor",
+                    action_type="info",
+                    action_data={
+                        "code_template": "employees = data.employee_data.employees\n# Calculate statistics\ntotal_score = sum([emp.performance_score for emp in employees])\navg_score = total_score / len(employees)\n# Find top performers\ntop_performers = [emp for emp in employees if emp.performance_score > avg_score]\nreturn {'average_score': avg_score, 'top_performers': top_performers}"
+                    }
+                ),
+                TutorialStep(
+                    title="Validate APIthon Compliance",
+                    description="Check script requirements",
+                    instruction="Use the validation panel to check your script. It verifies: 4096-byte limit, no imports/classes/private methods, proper return statement, and data structure compliance.",
+                    target_element="validate_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Add Report Formatting Script",
+                    description="Create formatted output",
+                    instruction="Add another script step to format the analysis results into a readable report. Set Output Key: 'formatted_report'.",
+                    target_element="add_script_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Test List Processing",
+                    description="Verify data transformations",
+                    instruction="Review the YAML preview to see how script expressions are formatted with literal block scalars (|). Test your list comprehensions and aggregation logic.",
+                    target_element="yaml_preview_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Module 4 Complete!",
+                    description="Data processing mastered",
+                    instruction="Excellent! You've mastered APIthon scripts for complex data processing, list manipulation, and report generation. Ready for Module 5: Error Handling with try-catch?",
+                    action_type="info"
+                )
             ]
         )
-        
+
+        # Module 5: Error Handling - Robust API Calls with Try-Catch
+        module_5_tutorial = Tutorial(
+            id="module_5_error_handling",
+            title="Module 5: Error Handling",
+            description="Robust API calls with try-catch and comprehensive error recovery",
+            category=TutorialCategory.BEST_PRACTICES,
+            difficulty=TutorialDifficulty.ADVANCED,
+            estimated_time="25 minutes",
+            prerequisites=["module_4_data_processing"],
+            learning_objectives=[
+                "Create try_catch expressions for comprehensive error handling",
+                "Handle API failures, network timeouts, and data validation errors",
+                "Implement TryCatchStep class with proper error recovery patterns",
+                "Use status code handling and fallback mechanisms",
+                "Build resilient workflows that gracefully handle failures"
+            ],
+            steps=[
+                TutorialStep(
+                    title="Welcome to Error Handling",
+                    description="Introduction to resilient workflows",
+                    instruction="Welcome to Module 5! We'll build a multi-system data synchronization workflow that gracefully handles failures, implements retry logic, and provides comprehensive error reporting. This demonstrates enterprise-grade error handling.",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Set Compound Action Name",
+                    description="Name your resilient workflow",
+                    instruction="Set the compound action name to 'resilient_employee_data_sync'. This workflow will synchronize data across multiple systems with comprehensive error handling.",
+                    target_element="compound_action_name_field",
+                    action_type="type",
+                    action_data={"text": "resilient_employee_data_sync"}
+                ),
+                TutorialStep(
+                    title="Add Primary Sync with Try-Catch",
+                    description="Create error-resilient operation",
+                    instruction="Click 'Add Step' → 'Try-Catch Step' to add error handling. Set description: 'Attempt primary HR system synchronization', Output Key: 'primary_sync_result'.",
+                    target_element="add_try_catch_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Configure Try Block",
+                    description="Set up main operation",
+                    instruction="In the try block, add an action step for HR system sync: Action Name: 'mw.sync_hr_system', Output Key: 'hr_sync_attempt'. Include timeout and retry parameters.",
+                    target_element="try_block_config",
+                    action_type="info",
+                    action_data={
+                        "action_name": "mw.sync_hr_system",
+                        "output_key": "hr_sync_attempt",
+                        "timeout_seconds": 30
+                    }
+                ),
+                TutorialStep(
+                    title="Configure Catch Block",
+                    description="Set up error recovery",
+                    instruction="In the catch block, add error logging and fallback data retrieval. This ensures the workflow continues even when the primary system fails.",
+                    target_element="catch_block_config",
+                    action_type="info",
+                    action_data={
+                        "error_logging": True,
+                        "fallback_action": "mw.get_cached_employee_data"
+                    }
+                ),
+                TutorialStep(
+                    title="Configure Status Codes",
+                    description="Define error triggers",
+                    instruction="Set status codes that trigger the catch block: ['400', '401', '403', '404', '500', '502', '503', '504']. This covers authentication, authorization, and server errors.",
+                    target_element="status_code_config",
+                    action_type="info",
+                    action_data={
+                        "status_codes": ["400", "401", "403", "404", "500", "502", "503", "504"]
+                    }
+                ),
+                TutorialStep(
+                    title="Add Retry Logic",
+                    description="Implement intelligent retries",
+                    instruction="Add a second try-catch step for payroll system sync with retry logic. Include exponential backoff delays and maximum retry limits.",
+                    target_element="add_try_catch_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Add Validation Script",
+                    description="Generate comprehensive reports",
+                    instruction="Add a script step to validate all sync operations and generate a detailed status report. Include success/failure counts and recommendations.",
+                    target_element="add_script_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Test Error Scenarios",
+                    description="Validate error handling",
+                    instruction="Use the validation panel to test your error handling logic. Verify status code configurations, fallback mechanisms, and retry patterns.",
+                    target_element="validate_button",
+                    action_type="click"
+                ),
+                TutorialStep(
+                    title="Review Error Handling YAML",
+                    description="Understand try-catch structure",
+                    instruction="Examine the YAML preview to see how try-catch expressions are structured with try_steps, catch_block, and on_status_code configurations.",
+                    target_element="yaml_preview_panel",
+                    action_type="info"
+                ),
+                TutorialStep(
+                    title="Module 5 Complete!",
+                    description="Error handling mastered",
+                    instruction="Outstanding! You've mastered enterprise-grade error handling with comprehensive recovery strategies. You've completed all 5 modules of the Moveworks YAML Assistant tutorial series!",
+                    action_type="info"
+                )
+            ]
+        )
+
         # Store tutorials
         self.tutorials = {
-            "first_workflow": first_workflow_tutorial,
-            "expression_types": expression_types_tutorial,
-            "enhanced_features": enhanced_features_tutorial
+            "module_1_basic_compound_action": module_1_tutorial,
+            "module_2_it_automation": module_2_tutorial,
+            "module_3_conditional_logic": module_3_tutorial,
+            "module_4_data_processing": module_4_tutorial,
+            "module_5_error_handling": module_5_tutorial
         }
     
     def get_available_tutorials(self) -> List[Tutorial]:

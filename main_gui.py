@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QPushButton, QMessageBox,
     QStackedWidget, QTreeWidget, QTreeWidgetItem, QGroupBox,
     QFormLayout, QLineEdit, QTableWidget, QTableWidgetItem,
-    QComboBox, QTabWidget, QScrollArea, QCheckBox
+    QComboBox, QTabWidget, QScrollArea, QCheckBox, QFrame
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QAction, QFont, QPalette
@@ -31,6 +31,7 @@ from error_display import ErrorListWidget, ValidationDialog, StatusIndicator, He
 from help_system import get_tooltip, get_contextual_help
 from tutorial_system import TutorialManager, TutorialDialog
 from integrated_tutorial_system import InteractiveTutorialManager
+from tutorial_integration import TutorialIntegrationManager
 from template_library import TemplateBrowserDialog, template_library
 from enhanced_json_selector import EnhancedJsonPathSelector
 from contextual_examples import ContextualExamplesPanel
@@ -781,99 +782,308 @@ class JsonVariableSelectionPanel(QWidget):
 
 
 class YamlPreviewPanel(QWidget):
-    """Panel for displaying the generated YAML."""
+    """Enhanced panel for displaying the generated YAML with real-time validation."""
+
+    validation_status_changed = Signal(bool, int, int)  # is_valid, error_count, warning_count
+    export_requested = Signal()  # Emitted when user requests export
 
     def __init__(self):
         super().__init__()
+        self.workflow = None
+        self.validation_summary = None
+        self.auto_refresh_enabled = True
+        self._setup_ui()
+        self._setup_validation_integration()
+
+    def _setup_ui(self):
+        """Set up the enhanced YAML preview UI."""
         layout = QVBoxLayout(self)
 
-        # Header
+        # Header with controls
         header_layout = QHBoxLayout()
         header_label = QLabel("YAML Preview")
-        header_label.setStyleSheet("font-weight: bold; font-size: 12px;")
+        header_label.setStyleSheet("font-weight: bold; font-size: 12px; color: #2c3e50;")
         header_layout.addWidget(header_label)
 
-        # Refresh button
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.clicked.connect(self.refresh_yaml)
-        header_layout.addWidget(refresh_btn)
-        header_layout.addStretch()
+        # Auto-refresh toggle
+        self.auto_refresh_checkbox = QCheckBox("Auto-refresh")
+        self.auto_refresh_checkbox.setChecked(True)
+        self.auto_refresh_checkbox.toggled.connect(self._on_auto_refresh_toggled)
+        header_layout.addWidget(self.auto_refresh_checkbox)
 
+        # Manual refresh button
+        self.refresh_btn = QPushButton("Refresh")
+        self.refresh_btn.clicked.connect(self.refresh_yaml)
+        self.refresh_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196f3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #1976d2;
+            }
+        """)
+        header_layout.addWidget(self.refresh_btn)
+
+        header_layout.addStretch()
         layout.addLayout(header_layout)
 
-        # YAML text display
+        # Validation status bar
+        self.validation_bar = self._create_validation_status_bar()
+        layout.addWidget(self.validation_bar)
+
+        # YAML text display with syntax highlighting
         self.yaml_text = QTextEdit()
         self.yaml_text.setReadOnly(True)
         font = QFont("Consolas", 10)
         font.setStyleHint(QFont.Monospace)
         self.yaml_text.setFont(font)
+        self.yaml_text.setStyleSheet("""
+            QTextEdit {
+                background-color: #fafafa;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 8px;
+            }
+        """)
         layout.addWidget(self.yaml_text)
 
-        # Validation status with enhanced display
-        self.validation_status = StatusIndicator("Ready")
-        self.validation_status.setToolTip(get_tooltip("validation_status"))
-        layout.addWidget(self.validation_status)
+        # Export controls
+        export_layout = QHBoxLayout()
 
-        # Detailed error display (initially hidden)
+        self.export_btn = QPushButton("Export YAML")
+        self.export_btn.clicked.connect(self._on_export_requested)
+        self.export_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4caf50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #388e3c;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+        export_layout.addWidget(self.export_btn)
+
+        self.validation_gate_label = QLabel("")
+        self.validation_gate_label.setStyleSheet("color: #666; font-size: 10px; font-style: italic;")
+        export_layout.addWidget(self.validation_gate_label)
+
+        export_layout.addStretch()
+        layout.addLayout(export_layout)
+
+        # Detailed error display (collapsible)
         self.error_display = ErrorListWidget()
         self.error_display.setMaximumHeight(200)
         self.error_display.hide()
         layout.addWidget(self.error_display)
 
-        self.workflow = None
+    def _create_validation_status_bar(self):
+        """Create the validation status bar with color-coded indicators."""
+        status_frame = QFrame()
+        status_frame.setFrameStyle(QFrame.Box)
+        status_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f8f8f8;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 4px;
+            }
+        """)
+
+        status_layout = QHBoxLayout(status_frame)
+        status_layout.setContentsMargins(8, 4, 8, 4)
+
+        # Validation status icon and text
+        self.status_icon = QLabel("⏳")
+        self.status_icon.setFixedSize(16, 16)
+        self.status_icon.setAlignment(Qt.AlignCenter)
+        status_layout.addWidget(self.status_icon)
+
+        self.status_text = QLabel("Validating...")
+        self.status_text.setStyleSheet("font-weight: bold; color: #2c3e50;")
+        status_layout.addWidget(self.status_text)
+
+        status_layout.addStretch()
+
+        # Error and warning counters
+        self.error_counter = QLabel("0 errors")
+        self.error_counter.setStyleSheet("color: #f44336; font-weight: bold;")
+        status_layout.addWidget(self.error_counter)
+
+        self.warning_counter = QLabel("0 warnings")
+        self.warning_counter.setStyleSheet("color: #ff9800; font-weight: bold;")
+        status_layout.addWidget(self.warning_counter)
+
+        # Toggle error display button
+        self.toggle_errors_btn = QPushButton("Show Details")
+        self.toggle_errors_btn.clicked.connect(self._toggle_error_display)
+        self.toggle_errors_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #2196f3;
+                border: 1px solid #2196f3;
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                background-color: #e3f2fd;
+            }
+        """)
+        status_layout.addWidget(self.toggle_errors_btn)
+
+        return status_frame
+
+    def _setup_validation_integration(self):
+        """Set up integration with the real-time validation system."""
+        from realtime_validation_manager import realtime_validation_manager
+
+        self.validation_manager = realtime_validation_manager
+        self.validation_manager.validation_updated.connect(self._on_validation_updated)
+
+    def _on_auto_refresh_toggled(self, enabled: bool):
+        """Handle auto-refresh toggle."""
+        self.auto_refresh_enabled = enabled
+        if enabled and self.workflow:
+            self.refresh_yaml()
+
+    def _on_validation_updated(self, summary):
+        """Handle validation updates from the validation manager."""
+        self.validation_summary = summary
+        self._update_validation_display(summary)
+
+        # Auto-refresh YAML if enabled
+        if self.auto_refresh_enabled:
+            self.refresh_yaml()
+
+    def _update_validation_display(self, summary):
+        """Update the validation status display."""
+        # Update counters
+        self.error_counter.setText(f"{summary.total_errors} errors")
+        self.warning_counter.setText(f"{summary.total_warnings} warnings")
+
+        # Update status icon and text
+        if summary.total_errors == 0:
+            if summary.total_warnings == 0:
+                self.status_icon.setText("✅")
+                self.status_text.setText("All validations passed")
+                self.status_text.setStyleSheet("font-weight: bold; color: #4caf50;")
+            else:
+                self.status_icon.setText("⚠️")
+                self.status_text.setText("Validation passed with warnings")
+                self.status_text.setStyleSheet("font-weight: bold; color: #ff9800;")
+        else:
+            self.status_icon.setText("❌")
+            self.status_text.setText("Validation errors found")
+            self.status_text.setStyleSheet("font-weight: bold; color: #f44336;")
+
+        # Update export button state
+        self.export_btn.setEnabled(summary.is_export_ready)
+
+        if summary.is_export_ready:
+            self.validation_gate_label.setText("✓ Ready for export")
+            self.validation_gate_label.setStyleSheet("color: #4caf50; font-size: 10px; font-style: italic;")
+        else:
+            critical_count = len(summary.critical_errors)
+            self.validation_gate_label.setText(f"⚠ {critical_count} critical error(s) must be fixed before export")
+            self.validation_gate_label.setStyleSheet("color: #f44336; font-size: 10px; font-style: italic;")
+
+        # Update error display
+        if summary.total_errors > 0 or summary.total_warnings > 0:
+            all_issues = []
+            for errors in summary.errors_by_step.values():
+                all_issues.extend([error.get_formatted_message() for error in errors])
+            for warnings in summary.warnings_by_step.values():
+                all_issues.extend([warning.get_formatted_message() for warning in warnings])
+
+            self.error_display.set_errors(all_issues)
+            self.toggle_errors_btn.setText(f"Show Details ({len(all_issues)})")
+        else:
+            self.error_display.clear_errors()
+            self.toggle_errors_btn.setText("Show Details")
+
+        # Emit validation status change
+        self.validation_status_changed.emit(
+            summary.is_export_ready,
+            summary.total_errors,
+            summary.total_warnings
+        )
+
+    def _toggle_error_display(self):
+        """Toggle the visibility of the error display."""
+        if self.error_display.isVisible():
+            self.error_display.hide()
+            self.toggle_errors_btn.setText("Show Details")
+        else:
+            self.error_display.show()
+            self.toggle_errors_btn.setText("Hide Details")
+
+    def _on_export_requested(self):
+        """Handle export request with validation gate."""
+        if not self.validation_summary or not self.validation_summary.is_export_ready:
+            # Show validation gate dialog
+            from PySide6.QtWidgets import QMessageBox
+
+            critical_errors = self.validation_summary.critical_errors if self.validation_summary else []
+            error_list = "\n".join([f"• {error.get_formatted_message()}" for error in critical_errors[:5]])
+
+            if len(critical_errors) > 5:
+                error_list += f"\n... and {len(critical_errors) - 5} more errors"
+
+            QMessageBox.warning(
+                self,
+                "Export Blocked",
+                f"Cannot export YAML due to critical validation errors:\n\n{error_list}\n\nPlease fix these errors before exporting."
+            )
+            return
+
+        self.export_requested.emit()
 
     def set_workflow(self, workflow: Workflow):
         """Set the workflow and update the YAML preview."""
         self.workflow = workflow
+
+        # Update validation manager
+        if hasattr(self, 'validation_manager'):
+            self.validation_manager.set_workflow(workflow)
+
         self.refresh_yaml()
 
     def refresh_yaml(self):
         """Refresh the YAML preview and validation."""
-        if not self.workflow or not self.workflow.steps:
-            self.yaml_text.setPlainText("No steps in workflow")
-            self.validation_status.set_status("ready", "No steps to validate")
-            self.error_display.clear_errors()
-            self.error_display.hide()
+        if not self.workflow:
+            self.yaml_text.setPlainText("No workflow to display")
             return
 
         try:
-            # Generate YAML with action name
-            action_name = getattr(self.parent(), 'action_name_edit', None)
-            action_name_value = action_name.text() if action_name else "compound_action"
-            yaml_content = generate_yaml_string(self.workflow, action_name_value)
-            self.yaml_text.setPlainText(yaml_content)
+            from yaml_generator import generate_yaml_string
+            yaml_output = generate_yaml_string(self.workflow, "compound_action")
 
-            # Validate workflow with enhanced compliance checking
-            from compliance_validator import compliance_validator
-
-            # Basic validation
-            errors = comprehensive_validate(self.workflow)
-
-            # Enhanced compliance validation
-            compliance_result = compliance_validator.validate_workflow_compliance(
-                self.workflow, action_name_value
-            )
-
-            # Combine all validation errors
-            if not compliance_result.is_valid:
-                errors.extend(compliance_result.mandatory_field_errors)
-                errors.extend(compliance_result.field_naming_errors)
-                errors.extend(compliance_result.apiton_errors)
-
-            if errors:
-                self.validation_status.set_error_count(len(errors))
-                self.error_display.set_errors(errors)
-                self.error_display.show()
-            else:
-                self.validation_status.set_error_count(0)
-                self.error_display.clear_errors()
-                self.error_display.hide()
+            # Apply syntax highlighting (basic)
+            self._apply_yaml_highlighting(yaml_output)
 
         except Exception as e:
-            self.yaml_text.setPlainText(f"Error generating YAML: {str(e)}")
-            self.validation_status.set_status("error", "YAML Generation Error")
-            self.error_display.set_errors([f"YAML Generation Error: {str(e)}"])
-            self.error_display.show()
+            self.yaml_text.setPlainText(f"Error generating YAML:\n{str(e)}")
+
+    def _apply_yaml_highlighting(self, yaml_content: str):
+        """Apply basic syntax highlighting to YAML content."""
+        # For now, just set the plain text
+        # In a full implementation, this would apply syntax highlighting
+        self.yaml_text.setPlainText(yaml_content)
+
+
 
     def _copy_yaml(self):
         """Copy YAML content to clipboard."""
@@ -1279,6 +1489,7 @@ class MainWindow(QMainWindow):
         # Initialize tutorial managers
         self.tutorial_manager = TutorialManager(self)
         self.interactive_tutorial_manager = InteractiveTutorialManager(self)
+        self.comprehensive_tutorial_manager = TutorialIntegrationManager(self)
 
         # Create central widget and main layout
         central_widget = QWidget()
@@ -1363,6 +1574,7 @@ class MainWindow(QMainWindow):
         action_name_layout = QVBoxLayout(action_name_group)
 
         self.action_name_edit = QLineEdit()
+        self.action_name_edit.setObjectName("compound_action_name_field")  # For tutorial targeting
         self.action_name_edit.setPlaceholderText("e.g., my_compound_action")
         self.action_name_edit.setText("compound_action")
         self.action_name_edit.setToolTip("Name for the compound action (required for Moveworks compliance)")
@@ -1454,6 +1666,7 @@ class MainWindow(QMainWindow):
         control_flow_style = button_style.replace("#2196f3", "#4caf50").replace("#1976d2", "#388e3c").replace("#0d47a1", "#2e7d32")
 
         add_switch_btn = QPushButton("🔀 Add Switch Step")
+        add_switch_btn.setObjectName("add_switch_button")  # For tutorial targeting
         add_switch_btn.clicked.connect(self._add_switch_step)
         add_switch_btn.setStyleSheet(control_flow_style)
         button_layout.addWidget(add_switch_btn)
@@ -1477,6 +1690,7 @@ class MainWindow(QMainWindow):
         error_style = button_style.replace("#2196f3", "#ff9800").replace("#1976d2", "#f57c00").replace("#0d47a1", "#e65100")
 
         add_try_catch_btn = QPushButton("🛡️ Add Try/Catch Step")
+        add_try_catch_btn.setObjectName("add_try_catch_button")  # For tutorial targeting
         add_try_catch_btn.clicked.connect(self._add_try_catch_step)
         add_try_catch_btn.setStyleSheet(error_style)
         button_layout.addWidget(add_try_catch_btn)
@@ -1646,10 +1860,12 @@ class MainWindow(QMainWindow):
         # JSON Path Selector Tab
         from tabbed_json_selector import TabbedJsonPathSelector
         self.enhanced_json_panel = TabbedJsonPathSelector()
+        self.enhanced_json_panel.setObjectName("json_path_selector_button")  # For tutorial targeting
         right_tabs.addTab(self.enhanced_json_panel, "🔍 JSON Explorer")
 
         # YAML Preview Tab
         self.yaml_panel = YamlPreviewPanel()
+        self.yaml_panel.setObjectName("yaml_preview_panel")  # For tutorial targeting
         right_tabs.addTab(self.yaml_panel, "📄 YAML Preview")
 
         # Validation Results Tab
@@ -1688,6 +1904,7 @@ class MainWindow(QMainWindow):
 
         # Validate button
         validate_btn = QPushButton("🔍 Validate Now")
+        validate_btn.setObjectName("validate_button")  # For tutorial targeting
         validate_btn.setStyleSheet("""
             QPushButton {
                 background-color: #2196f3;
@@ -1951,6 +2168,14 @@ class MainWindow(QMainWindow):
 
         # Tutorial submenu
         tutorials_submenu = tools_menu.addMenu("📚 Tutorials")
+
+        # Comprehensive Tutorial Series
+        comprehensive_tutorial_action = QAction("🚀 Comprehensive Tutorial Series", self)
+        comprehensive_tutorial_action.triggered.connect(self._show_comprehensive_tutorials)
+        comprehensive_tutorial_action.setToolTip("Complete 5-module tutorial series covering all Moveworks features")
+        tutorials_submenu.addAction(comprehensive_tutorial_action)
+
+        tutorials_submenu.addSeparator()
 
         interactive_tutorial_action = QAction("🎯 Interactive Basic Workflow", self)
         interactive_tutorial_action.triggered.connect(self._start_interactive_tutorial)
@@ -2490,6 +2715,10 @@ class MainWindow(QMainWindow):
     def _show_tutorials(self):
         """Show the tutorial selection dialog."""
         self.tutorial_manager.show_tutorial_dialog()
+
+    def _show_comprehensive_tutorials(self):
+        """Show the comprehensive tutorial series selection."""
+        self.comprehensive_tutorial_manager.show_tutorial_selection()
 
     def _new_workflow(self):
         """Create a new workflow."""

@@ -1,29 +1,38 @@
 #!/usr/bin/env python3
 """
-Test script to verify the integrated tutorial system is working correctly.
+Test script for the comprehensive tutorial integration.
+
+This script tests the tutorial system integration with the main application
+to ensure all components work together properly.
 """
 
 import sys
 import os
+from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import Qt
 
-# Add current directory to path
+# Add the current directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def test_imports():
-    """Test that all tutorial-related modules can be imported."""
-    print("🧪 Testing Tutorial System Imports")
+def test_tutorial_imports():
+    """Test that all tutorial-related imports work correctly."""
+    print("🧪 Testing Comprehensive Tutorial Imports")
     print("=" * 50)
 
     try:
-        # Test tutorial_data import
+        from comprehensive_tutorial_system import ComprehensiveTutorialSystem, Tutorial, TutorialStep
+        print("✅ ComprehensiveTutorialSystem imported successfully")
+
+        from tutorial_integration import TutorialIntegrationManager, TutorialSelectionWidget
+        print("✅ TutorialIntegrationManager imported successfully")
+
+        # Test legacy imports still work
         import tutorial_data
         print("✅ tutorial_data imported successfully")
 
-        # Test integrated_tutorial_system import
         from integrated_tutorial_system import InteractiveTutorialManager, InteractiveTutorialStep
         print("✅ integrated_tutorial_system imported successfully")
 
-        # Test main_gui integration
         from main_gui import MainWindow
         print("✅ main_gui with tutorial integration imported successfully")
 
@@ -31,6 +40,128 @@ def test_imports():
 
     except ImportError as e:
         print(f"❌ Import error: {e}")
+        return False
+
+def test_comprehensive_tutorial_system():
+    """Test creating the comprehensive tutorial system."""
+    print("\n🎯 Testing Comprehensive Tutorial System")
+    print("=" * 50)
+
+    try:
+        from comprehensive_tutorial_system import ComprehensiveTutorialSystem
+
+        # Create a mock main window
+        app = QApplication.instance() or QApplication(sys.argv)
+
+        class MockMainWindow:
+            def findChild(self, widget_type, name):
+                return None
+
+        mock_window = MockMainWindow()
+        tutorial_system = ComprehensiveTutorialSystem(mock_window)
+
+        # Test getting tutorials
+        tutorials = tutorial_system.get_available_tutorials()
+        print(f"✅ Tutorial system created with {len(tutorials)} tutorials")
+
+        # Test tutorial IDs
+        expected_ids = [
+            "module_1_basic_compound_action",
+            "module_2_it_automation",
+            "module_3_conditional_logic",
+            "module_4_data_processing",
+            "module_5_error_handling"
+        ]
+
+        actual_ids = [t.id for t in tutorials]
+        for expected_id in expected_ids:
+            if expected_id in actual_ids:
+                print(f"✅ Found tutorial: {expected_id}")
+            else:
+                print(f"❌ Missing tutorial: {expected_id}")
+                return False
+
+        return True
+    except Exception as e:
+        print(f"❌ Tutorial system creation error: {e}")
+        return False
+
+def test_tutorial_content():
+    """Test tutorial content structure."""
+    print("\n📚 Testing Tutorial Content Structure")
+    print("=" * 50)
+
+    try:
+        from comprehensive_tutorial_system import ComprehensiveTutorialSystem
+
+        app = QApplication.instance() or QApplication(sys.argv)
+
+        class MockMainWindow:
+            def findChild(self, widget_type, name):
+                return None
+
+        mock_window = MockMainWindow()
+        tutorial_system = ComprehensiveTutorialSystem(mock_window)
+        tutorials = tutorial_system.get_available_tutorials()
+
+        for tutorial in tutorials:
+            print(f"\n📖 Validating: {tutorial.title}")
+
+            # Check required fields
+            assert tutorial.id, "Tutorial must have ID"
+            assert tutorial.title, "Tutorial must have title"
+            assert tutorial.description, "Tutorial must have description"
+            assert tutorial.learning_objectives, "Tutorial must have learning objectives"
+            assert tutorial.steps, "Tutorial must have steps"
+
+            print(f"   ✅ {len(tutorial.steps)} steps")
+            print(f"   ✅ {len(tutorial.learning_objectives)} learning objectives")
+
+            # Check step structure
+            for i, step in enumerate(tutorial.steps):
+                assert step.title, f"Step {i+1} must have title"
+                assert step.instruction, f"Step {i+1} must have instruction"
+
+        print("✅ All tutorial content validation passed")
+        return True
+    except Exception as e:
+        print(f"❌ Tutorial content validation error: {e}")
+        return False
+
+def test_integration_manager():
+    """Test the tutorial integration manager."""
+    print("\n🔧 Testing Integration Manager")
+    print("=" * 50)
+
+    try:
+        from tutorial_integration import TutorialIntegrationManager
+
+        app = QApplication.instance() or QApplication(sys.argv)
+
+        class MockMainWindow:
+            def findChild(self, widget_type, name):
+                return None
+
+        mock_window = MockMainWindow()
+        integration_manager = TutorialIntegrationManager(mock_window)
+
+        # Test getting tutorial system
+        tutorial_system = integration_manager.get_tutorial_system()
+        assert tutorial_system is not None, "Tutorial system should be available"
+        print("✅ Tutorial system accessible through integration manager")
+
+        # Test tutorial info when no tutorial is active
+        info = integration_manager.get_current_tutorial_info()
+        assert info is None, "No tutorial should be active initially"
+        print("✅ Current tutorial info correctly returns None when inactive")
+
+        # Test is_tutorial_active
+        assert not integration_manager.is_tutorial_active(), "No tutorial should be active initially"
+        print("✅ Tutorial active status correctly returns False when inactive")
+
+        return True
+    except Exception as e:
+        print(f"❌ Integration manager test error: {e}")
         return False
 
 def test_tutorial_data():
@@ -139,7 +270,10 @@ def main():
     print("=" * 60)
 
     tests = [
-        test_imports,
+        test_tutorial_imports,
+        test_comprehensive_tutorial_system,
+        test_tutorial_content,
+        test_integration_manager,
         test_tutorial_data,
         test_tutorial_steps,
         test_tutorial_manager
@@ -161,16 +295,24 @@ def main():
     if passed == total:
         print("🎉 ALL TUTORIAL INTEGRATION TESTS PASSED!")
         print("=" * 60)
-        print("\n✅ Tutorial System Ready:")
+        print("\n✅ Comprehensive Tutorial System Ready:")
         print("  • All imports working correctly")
-        print("  • Tutorial data loading successfully")
-        print("  • Tutorial steps creating properly")
-        print("  • Tutorial manager functioning")
+        print("  • Comprehensive tutorial system functional")
+        print("  • 5-module tutorial series available")
+        print("  • Integration manager working")
+        print("  • Legacy tutorial system still functional")
+        print("\n🚀 Comprehensive Tutorial Series Available:")
+        print("  • Module 1: Your First Compound Action")
+        print("  • Module 2: IT Automation (ServiceNow/Jira)")
+        print("  • Module 3: Conditional Logic (Switch Statements)")
+        print("  • Module 4: Data Processing (APIthon Scripts)")
+        print("  • Module 5: Error Handling (Try-Catch)")
         print("\n🎯 Ready to Use:")
         print("  • Start the application: python run_app.py")
-        print("  • Access tutorial: Tools → 📚 Tutorials → 🎯 Interactive Basic Workflow")
-        print("  • Follow step-by-step guidance with copy-paste examples")
-        print("  • Learn workflow creation hands-on!")
+        print("  • Access comprehensive tutorials: Tools → 📚 Tutorials → 🚀 Comprehensive Tutorial Series")
+        print("  • Access legacy tutorials: Tools → 📚 Tutorials → 🎯 Interactive Basic Workflow")
+        print("  • Follow progressive learning path with hands-on examples")
+        print("  • Master all Moveworks compound action features!")
 
         return True
     else:

@@ -390,8 +390,10 @@ class InteractiveTutorialOverlay(QWidget):
         # Add content frame to main panel
         panel_layout.addWidget(content_frame)
 
-        # Position the panel - make it larger to accommodate the header
-        self.instruction_panel.setFixedSize(520, 700)  # Slightly larger for header
+        # Position the panel - make it appropriately sized
+        self.instruction_panel.setMinimumSize(400, 450)
+        self.instruction_panel.setMaximumSize(550, 600)
+        self.instruction_panel.resize(480, 500)  # Default size
 
         # Debug: Ensure buttons are visible
         print(f"Tutorial buttons created: Previous={self.previous_btn.isVisible()}, Skip={self.skip_btn.isVisible()}, Next={self.next_btn.isVisible()}")
