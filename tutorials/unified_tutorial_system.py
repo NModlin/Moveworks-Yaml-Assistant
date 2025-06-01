@@ -1,50 +1,27 @@
 """
-Unified Tutorial System for Moveworks YAML Assistant.
+Unified Tutorial System with Plugin-Based Architecture.
 
-This module combines the best features from all existing tutorial systems:
-- Non-blocking interactive overlay (from integrated_tutorial_system.py)
-- Comprehensive tutorial structure (from comprehensive_tutorial_system.py)  
-- Clean selection dialog (from tutorial_system.py)
-- Copy-paste functionality and real-time interaction
-- Progressive 5-module curriculum with learning objectives
+This module provides a comprehensive tutorial system that consolidates all functionality
+from legacy systems while implementing a maintainable plugin-based architecture.
 """
 
+import os
+import sys
+import importlib
+import warnings
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Type
 from enum import Enum
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit, 
     QProgressBar, QFrame, QListWidget, QListWidgetItem, QDialog, QScrollArea,
-    QApplication, QSizePolicy
+    QApplication, QSizePolicy, QMessageBox, QFileDialog, QTabWidget, QSplitter
 )
-from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve, QRect, QPoint
+from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve, QRect, QPoint, QSettings
 from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QClipboard
-
-# Import tutorial data for JSON examples
-try:
-    from tutorial_data import get_tutorial_json_data, get_tutorial_script_example
-except ImportError:
-    # Fallback if tutorial_data is not available
-    def get_tutorial_json_data(tutorial_id: str, step_type: str = "user"):
-        return {
-            "user": {
-                "id": "emp_12345",
-                "name": "John Doe",
-                "email": "john.doe@company.com",
-                "department": "Engineering",
-                "location": "San Francisco",
-                "manager": {
-                    "id": "mgr_67890",
-                    "name": "Jane Smith",
-                    "email": "jane.smith@company.com"
-                },
-                "permissions": ["read", "write", "admin"],
-                "active": True
-            }
-        }
-
-    def get_tutorial_script_example(tutorial_id: str):
-        return "# Sample script code\nuser_name = data.user_info.user.name\nreturn {'greeting': f'Hello, {user_name}!'}"
 
 
 class TutorialCategory(Enum):
@@ -54,6 +31,7 @@ class TutorialCategory(Enum):
     DATA_HANDLING = "Data Handling"
     ADVANCED_FEATURES = "Advanced Features"
     BEST_PRACTICES = "Best Practices"
+    CUSTOM = "Custom"
 
 
 class TutorialDifficulty(Enum):
@@ -65,7 +43,7 @@ class TutorialDifficulty(Enum):
 
 @dataclass
 class UnifiedTutorialStep:
-    """Enhanced tutorial step combining all best features."""
+    """Enhanced tutorial step with comprehensive metadata and functionality."""
     title: str
     description: str
     instruction: str
@@ -77,10 +55,12 @@ class UnifiedTutorialStep:
     validation_function: Optional[Callable] = None
     auto_advance: bool = False
     delay_ms: int = 1000
-    highlight_color: str = "#3498db"
+    highlight_color: str = "#4a86e8"  # Maintain exact visual consistency
     sample_json: Optional[Dict[str, Any]] = None  # JSON examples for the step
     screenshot_path: Optional[str] = None
     video_url: Optional[str] = None
+    prerequisites: List[str] = field(default_factory=list)
+    learning_objectives: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -97,16 +77,239 @@ class UnifiedTutorial:
     steps: List[UnifiedTutorialStep] = field(default_factory=list)
     completion_reward: str = ""
     tags: List[str] = field(default_factory=list)
+    version: str = "1.0.0"
+    author: str = ""
+    created_date: str = ""
+    last_modified: str = ""
+    plugin_source: str = ""  # Which plugin provided this tutorial
+
+
+class TutorialPlugin(ABC):
+    """Base class for all tutorial plugins."""
+    
+    @abstractmethod
+    def get_metadata(self) -> Dict[str, Any]:
+        """Return plugin metadata including name, version, description."""
+        pass
+    
+    @abstractmethod
+    def get_tutorials(self) -> List[UnifiedTutorial]:
+        """Return list of tutorials provided by this plugin."""
+        pass
+    
+    @abstractmethod
+    def get_plugin_id(self) -> str:
+        """Return unique plugin identifier."""
+        pass
+    
+    def initialize(self) -> bool:
+        """Initialize plugin. Return True if successful."""
+        return True
+    
+    def cleanup(self) -> None:
+        """Cleanup plugin resources."""
+        pass
+    
+    def validate_tutorial(self, tutorial: UnifiedTutorial) -> List[str]:
+        """Validate tutorial structure. Return list of errors."""
+        errors = []
+        
+        if not tutorial.id:
+            errors.append("Tutorial ID is required")
+        if not tutorial.title:
+            errors.append("Tutorial title is required")
+        if not tutorial.steps:
+            errors.append("Tutorial must have at least one step")
+        
+        return errors
+
+
+class PluginManager:
+    """Manages tutorial plugin discovery, loading, and lifecycle."""
+    
+    def __init__(self, plugin_directory: str = "tutorials/plugins"):
+        self.plugin_directory = Path(plugin_directory)
+        self.plugins: Dict[str, TutorialPlugin] = {}
+        self.plugin_metadata: Dict[str, Dict[str, Any]] = {}
+        self.tutorials_cache: Dict[str, UnifiedTutorial] = {}
+        
+        # Ensure plugin directory exists
+        self.plugin_directory.mkdir(parents=True, exist_ok=True)
+        
+        # Create __init__.py if it doesn't exist
+        init_file = self.plugin_directory / "__init__.py"
+        if not init_file.exists():
+            init_file.write_text("# Tutorial plugins directory\n")
+    
+    def discover_plugins(self) -> List[str]:
+        """Discover available plugins in the plugin directory."""
+        discovered = []
+        
+        if not self.plugin_directory.exists():
+            return discovered
+        
+        for file_path in self.plugin_directory.glob("*.py"):
+            if file_path.name.startswith("__"):
+                continue
+            
+            module_name = file_path.stem
+            discovered.append(module_name)
+        
+        return discovered
+    
+    def load_plugin(self, plugin_name: str) -> bool:
+        """Load a specific plugin by name."""
+        try:
+            # Add plugin directory to Python path if not already there
+            plugin_dir_str = str(self.plugin_directory.parent)
+            if plugin_dir_str not in sys.path:
+                sys.path.insert(0, plugin_dir_str)
+            
+            # Import the plugin module
+            module_path = f"tutorials.plugins.{plugin_name}"
+            module = importlib.import_module(module_path)
+            
+            # Find plugin class (should end with 'Plugin')
+            plugin_class = None
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (isinstance(attr, type) and 
+                    issubclass(attr, TutorialPlugin) and 
+                    attr != TutorialPlugin):
+                    plugin_class = attr
+                    break
+            
+            if not plugin_class:
+                print(f"Warning: No plugin class found in {plugin_name}")
+                return False
+            
+            # Instantiate and initialize plugin
+            plugin_instance = plugin_class()
+            if not plugin_instance.initialize():
+                print(f"Warning: Plugin {plugin_name} failed to initialize")
+                return False
+            
+            # Store plugin and metadata
+            plugin_id = plugin_instance.get_plugin_id()
+            self.plugins[plugin_id] = plugin_instance
+            self.plugin_metadata[plugin_id] = plugin_instance.get_metadata()
+            
+            # Cache tutorials from this plugin
+            for tutorial in plugin_instance.get_tutorials():
+                tutorial.plugin_source = plugin_id
+                self.tutorials_cache[tutorial.id] = tutorial
+            
+            print(f"✓ Loaded plugin: {plugin_id}")
+            return True
+            
+        except Exception as e:
+            print(f"✗ Failed to load plugin {plugin_name}: {e}")
+            return False
+    
+    def load_all_plugins(self) -> int:
+        """Load all discovered plugins. Return number of successfully loaded plugins."""
+        discovered = self.discover_plugins()
+        loaded_count = 0
+        
+        for plugin_name in discovered:
+            if self.load_plugin(plugin_name):
+                loaded_count += 1
+        
+        return loaded_count
+    
+    def get_plugin(self, plugin_id: str) -> Optional[TutorialPlugin]:
+        """Get a loaded plugin by ID."""
+        return self.plugins.get(plugin_id)
+    
+    def get_all_tutorials(self) -> List[UnifiedTutorial]:
+        """Get all tutorials from all loaded plugins."""
+        return list(self.tutorials_cache.values())
+    
+    def get_tutorials_by_category(self, category: TutorialCategory) -> List[UnifiedTutorial]:
+        """Get tutorials filtered by category."""
+        return [t for t in self.tutorials_cache.values() if t.category == category]
+    
+    def get_tutorial_by_id(self, tutorial_id: str) -> Optional[UnifiedTutorial]:
+        """Get a specific tutorial by ID."""
+        return self.tutorials_cache.get(tutorial_id)
+    
+    def import_plugin_from_file(self, file_path: str) -> bool:
+        """Import a plugin from an external file."""
+        try:
+            source_path = Path(file_path)
+            if not source_path.exists():
+                return False
+            
+            # Copy to plugin directory
+            dest_path = self.plugin_directory / source_path.name
+            dest_path.write_text(source_path.read_text())
+            
+            # Load the new plugin
+            plugin_name = source_path.stem
+            return self.load_plugin(plugin_name)
+            
+        except Exception as e:
+            print(f"Failed to import plugin from {file_path}: {e}")
+            return False
+    
+    def unload_plugin(self, plugin_id: str) -> bool:
+        """Unload a plugin and remove its tutorials."""
+        if plugin_id not in self.plugins:
+            return False
+        
+        try:
+            # Cleanup plugin
+            self.plugins[plugin_id].cleanup()
+            
+            # Remove tutorials from cache
+            tutorials_to_remove = [
+                tid for tid, tutorial in self.tutorials_cache.items()
+                if tutorial.plugin_source == plugin_id
+            ]
+            for tid in tutorials_to_remove:
+                del self.tutorials_cache[tid]
+            
+            # Remove plugin
+            del self.plugins[plugin_id]
+            del self.plugin_metadata[plugin_id]
+            
+            return True
+            
+        except Exception as e:
+            print(f"Failed to unload plugin {plugin_id}: {e}")
+            return False
+    
+    def reload_plugin(self, plugin_id: str) -> bool:
+        """Reload a plugin (unload and load again)."""
+        if plugin_id in self.plugins:
+            # Find the module name from metadata
+            metadata = self.plugin_metadata.get(plugin_id, {})
+            module_name = metadata.get("module_name", plugin_id)
+            
+            # Unload first
+            self.unload_plugin(plugin_id)
+            
+            # Reload module
+            module_path = f"tutorials.plugins.{module_name}"
+            if module_path in sys.modules:
+                importlib.reload(sys.modules[module_path])
+            
+            # Load again
+            return self.load_plugin(module_name)
+        
+        return False
 
 
 class UnifiedTutorialOverlay(QWidget):
     """
-    Non-blocking interactive tutorial overlay combining best features:
-    - Visual highlighting with smooth animations
-    - Copy-paste functionality with examples
-    - Real-time UI interaction (non-blocking)
-    - Progress tracking and navigation
-    - Rich content display with JSON examples
+    Resizable, non-blocking tutorial overlay with visual highlighting.
+
+    Features:
+    - Maintains exact visual styling from current system (#4a86e8 colors, proper spacing)
+    - Resizable panel with layout constraints (400x300px minimum)
+    - Smart positioning to avoid covering target elements
+    - Draggable with position memory
+    - Pulsing animation and semi-transparent overlay
     """
 
     step_completed = Signal()
@@ -117,7 +320,7 @@ class UnifiedTutorialOverlay(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        
+
         # Make overlay non-blocking for UI interaction
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowTransparentForInput)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -131,33 +334,37 @@ class UnifiedTutorialOverlay(QWidget):
         self.step_number = 1
         self.total_steps = 1
 
+        # Settings for position memory
+        self.settings = QSettings("MoveworksYAMLAssistant", "TutorialSystem")
+
         # Create separate floating panel for instructions (independent window)
         self.floating_panel = QWidget(None)  # No parent - truly independent
         # Use Window flag to enable resizing while keeping it on top
         self.floating_panel.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.floating_panel.setAttribute(Qt.WA_DeleteOnClose, False)
         self.floating_panel.setWindowTitle("Tutorial Guide")
-        
+
         self._setup_floating_panel()
         self._setup_animations()
+        self._restore_panel_position()
 
     def _setup_floating_panel(self):
-        """Setup the resizable floating instruction panel."""
+        """Setup the resizable floating instruction panel with exact visual styling."""
         # Enhanced size requirements for resizable window
         self.floating_panel.setMinimumSize(400, 300)  # Minimum for readability
         self.floating_panel.setMaximumSize(1000, 1200)  # Larger maximum for flexibility
         self.floating_panel.resize(500, 450)  # Slightly larger default size
-        
-        # Main layout
-        layout = QVBoxLayout(self.floating_panel)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
 
-        # Header with progress
+        # Main layout with exact spacing (16px margins, 12px element spacing)
+        layout = QVBoxLayout(self.floating_panel)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # Header with progress - exact color scheme (#4a86e8)
         header_frame = QFrame()
         header_frame.setStyleSheet("""
             QFrame {
-                background-color: #3498db;
+                background-color: #4a86e8;
                 border-radius: 8px;
                 padding: 8px;
             }
@@ -165,11 +372,11 @@ class UnifiedTutorialOverlay(QWidget):
         header_layout = QVBoxLayout(header_frame)
         header_layout.setContentsMargins(8, 8, 8, 8)
 
-        # Step indicator and progress bar
+        # Step indicator with exact typography (16px for titles)
         self.step_indicator = QLabel("Step 1 of 1")
-        self.step_indicator.setStyleSheet("color: white; font-weight: bold; font-size: 14px;")
+        self.step_indicator.setStyleSheet("color: white; font-weight: bold; font-size: 16px;")
         self.step_indicator.setAlignment(Qt.AlignCenter)
-        
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setStyleSheet("""
             QProgressBar {
@@ -185,12 +392,12 @@ class UnifiedTutorialOverlay(QWidget):
                 border-radius: 3px;
             }
         """)
-        
+
         header_layout.addWidget(self.step_indicator)
         header_layout.addWidget(self.progress_bar)
         layout.addWidget(header_frame)
 
-        # Content area with scroll
+        # Content area with scroll - exact background (#f8f8f8)
         content_scroll = QScrollArea()
         content_scroll.setWidgetResizable(True)
         content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -198,16 +405,16 @@ class UnifiedTutorialOverlay(QWidget):
             QScrollArea {
                 border: 1px solid #bdc3c7;
                 border-radius: 5px;
-                background-color: white;
+                background-color: #f8f8f8;
             }
         """)
-        
+
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(12, 12, 12, 12)
         content_layout.setSpacing(8)
 
-        # Step title
+        # Step title with exact typography
         self.step_title = QLabel()
         self.step_title.setStyleSheet("""
             QLabel {
@@ -228,7 +435,7 @@ class UnifiedTutorialOverlay(QWidget):
         self.step_description.setStyleSheet("""
             QTextEdit {
                 border: none;
-                background-color: #f8f9fa;
+                background-color: #f8f8f8;
                 border-radius: 4px;
                 padding: 8px;
                 color: #2c3e50;
@@ -307,18 +514,16 @@ class UnifiedTutorialOverlay(QWidget):
         copy_paste_layout.addWidget(self.copy_button)
 
         content_layout.addWidget(self.copy_paste_frame)
-
-        # Add stretch to push buttons to bottom
         content_layout.addStretch()
 
         content_scroll.setWidget(content_widget)
         layout.addWidget(content_scroll)
 
-        # Navigation buttons
+        # Navigation buttons with exact styling
         button_frame = QFrame()
         button_frame.setStyleSheet("""
             QFrame {
-                background-color: #f8f9fa;
+                background-color: #f8f8f8;
                 border-radius: 6px;
                 padding: 8px;
             }
@@ -367,11 +572,11 @@ class UnifiedTutorialOverlay(QWidget):
 
         button_layout.addStretch()
 
-        # Next button
+        # Next button with primary color
         self.next_btn = QPushButton("Next →")
         self.next_btn.setStyleSheet("""
             QPushButton {
-                background-color: #007bff;
+                background-color: #4a86e8;
                 color: white;
                 border: none;
                 padding: 8px 16px;
@@ -379,7 +584,7 @@ class UnifiedTutorialOverlay(QWidget):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #0056b3;
+                background-color: #3d71d9;
             }
         """)
         self.next_btn.clicked.connect(self.next_step_requested.emit)
@@ -387,22 +592,35 @@ class UnifiedTutorialOverlay(QWidget):
 
         layout.addWidget(button_frame)
 
-        # Make panel draggable
+        # Make panel draggable and resizable
         self.floating_panel.mousePressEvent = self._start_drag
         self.floating_panel.mouseMoveEvent = self._drag_panel
         self.floating_panel.mouseReleaseEvent = self._end_drag
         self.drag_position = None
 
     def _setup_animations(self):
-        """Setup animations for smooth transitions."""
+        """Setup pulsing animation for highlighting."""
         self.highlight_animation = QPropertyAnimation(self, b"geometry")
         self.highlight_animation.setDuration(500)
         self.highlight_animation.setEasingCurve(QEasingCurve.InOutQuad)
 
-        # Pulse animation timer
+        # Pulse animation timer for highlighting
         self.pulse_timer = QTimer()
         self.pulse_timer.timeout.connect(self._pulse_highlight)
         self.pulse_timer.setInterval(1000)
+
+    def _restore_panel_position(self):
+        """Restore panel position from settings."""
+        pos = self.settings.value("tutorial_panel_position", QPoint(100, 100))
+        size = self.settings.value("tutorial_panel_size", self.floating_panel.size())
+
+        self.floating_panel.move(pos)
+        self.floating_panel.resize(size)
+
+    def _save_panel_position(self):
+        """Save panel position to settings."""
+        self.settings.setValue("tutorial_panel_position", self.floating_panel.pos())
+        self.settings.setValue("tutorial_panel_size", self.floating_panel.size())
 
     def show_step(self, step: UnifiedTutorialStep, target_widget: QWidget = None,
                   step_number: int = 1, total_steps: int = 1):
@@ -450,7 +668,7 @@ class UnifiedTutorialOverlay(QWidget):
             self.pulse_timer.start()
 
     def _position_floating_panel(self, target_widget: QWidget = None):
-        """Position floating panel to avoid covering target widget."""
+        """Smart positioning to avoid covering target widget."""
         if not self.parent():
             return
 
@@ -482,7 +700,7 @@ class UnifiedTutorialOverlay(QWidget):
         self.floating_panel.move(x, y)
 
     def _setup_highlighting(self, target_widget: QWidget):
-        """Setup highlighting for target widget."""
+        """Setup highlighting for target widget with exact color."""
         if not target_widget or not self.parent():
             return
 
@@ -531,7 +749,7 @@ class UnifiedTutorialOverlay(QWidget):
         painter.drawRoundedRect(self.target_rect, 8, 8)
 
     def _copy_to_clipboard(self):
-        """Copy the example text to clipboard."""
+        """Copy the example text to clipboard with visual feedback."""
         if self.current_step and self.current_step.copy_paste_data:
             clipboard = QApplication.clipboard()
             clipboard.setText(self.current_step.copy_paste_data)
@@ -552,8 +770,9 @@ class UnifiedTutorialOverlay(QWidget):
             self.floating_panel.move(event.globalPosition().toPoint() - self.drag_position)
 
     def _end_drag(self, event):
-        """End dragging the floating panel."""
+        """End dragging and save position."""
         self.drag_position = None
+        self._save_panel_position()
 
     def hide(self):
         """Hide the overlay and floating panel."""
@@ -562,6 +781,7 @@ class UnifiedTutorialOverlay(QWidget):
             self.floating_panel.hide()
         if self.pulse_timer:
             self.pulse_timer.stop()
+        self._save_panel_position()
 
     def closeEvent(self, event):
         """Handle close event."""
@@ -569,40 +789,42 @@ class UnifiedTutorialOverlay(QWidget):
             self.floating_panel.close()
         if self.pulse_timer:
             self.pulse_timer.stop()
+        self._save_panel_position()
         super().closeEvent(event)
 
 
 class UnifiedTutorialSelectionDialog(QDialog):
-    """Enhanced tutorial selection dialog combining best features."""
+    """Enhanced tutorial selection dialog with plugin management."""
 
     tutorial_selected = Signal(str)  # Emits tutorial ID
+    import_plugin_requested = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, plugin_manager: PluginManager, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Moveworks YAML Assistant - Interactive Tutorials")
+        self.plugin_manager = plugin_manager
+        self.setWindowTitle("Moveworks YAML Assistant - Tutorial System")
         self.setModal(True)
-        self.setMinimumSize(900, 650)
-        self.resize(1000, 750)
+        self.setMinimumSize(1000, 700)
+        self.resize(1200, 800)
 
-        self.tutorials = {}
         self._setup_ui()
         self._load_tutorials()
         self._connect_signals()
 
     def _setup_ui(self):
-        """Setup the tutorial selection UI."""
+        """Setup the tutorial selection UI with exact visual styling."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
 
-        # Header
-        header_label = QLabel("🎓 Interactive Tutorial System")
+        # Header with exact typography
+        header_label = QLabel("🎓 Unified Tutorial System")
         header_label.setFont(QFont("Arial", 18, QFont.Bold))
         header_label.setStyleSheet("color: #2c3e50; margin-bottom: 8px;")
         header_label.setAlignment(Qt.AlignCenter)
 
         # Subtitle
-        subtitle_label = QLabel("Master Moveworks compound actions through progressive, hands-on tutorials")
+        subtitle_label = QLabel("Plugin-based tutorial system with comprehensive content migration")
         subtitle_label.setStyleSheet("color: #7f8c8d; font-size: 14px; margin-bottom: 16px;")
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setWordWrap(True)
@@ -610,52 +832,119 @@ class UnifiedTutorialSelectionDialog(QDialog):
         layout.addWidget(header_label)
         layout.addWidget(subtitle_label)
 
-        # Main content area
-        content_layout = QHBoxLayout()
+        # Main content with splitter for resizable panels
+        main_splitter = QSplitter(Qt.Horizontal)
 
-        # Left side - Tutorial list
+        # Left panel - Tutorial list with categories
         left_panel = QFrame()
         left_panel.setStyleSheet("""
             QFrame {
                 border: 1px solid #bdc3c7;
                 border-radius: 8px;
-                background-color: #f8f9fa;
+                background-color: #f8f8f8;
                 padding: 8px;
             }
         """)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(8, 8, 8, 8)
 
+        # Tutorial list header
+        list_header = QHBoxLayout()
         list_label = QLabel("📚 Available Tutorials")
         list_label.setFont(QFont("Arial", 14, QFont.Bold))
         list_label.setStyleSheet("color: #2c3e50; margin-bottom: 8px;")
-        left_layout.addWidget(list_label)
+        list_header.addWidget(list_label)
 
-        self.tutorial_list = QListWidget()
-        self.tutorial_list.setStyleSheet("""
-            QListWidget {
+        list_header.addStretch()
+
+        # Import plugin button
+        self.import_btn = QPushButton("📥 Import Plugin")
+        self.import_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+        """)
+        self.import_btn.clicked.connect(self._import_plugin)
+        list_header.addWidget(self.import_btn)
+
+        left_layout.addLayout(list_header)
+
+        # Category tabs
+        self.category_tabs = QTabWidget()
+        self.category_tabs.setStyleSheet("""
+            QTabWidget::pane {
                 border: 1px solid #dee2e6;
-                border-radius: 6px;
+                border-radius: 4px;
                 background-color: white;
-                selection-background-color: #007bff;
-                selection-color: white;
-                font-size: 13px;
             }
-            QListWidget::item {
-                padding: 12px;
-                border-bottom: 1px solid #f1f3f4;
+            QTabBar::tab {
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                padding: 8px 12px;
+                margin-right: 2px;
             }
-            QListWidget::item:hover {
-                background-color: #e3f2fd;
-            }
-            QListWidget::item:selected {
-                background-color: #007bff;
+            QTabBar::tab:selected {
+                background-color: #4a86e8;
                 color: white;
             }
         """)
-        left_layout.addWidget(self.tutorial_list)
 
-        # Right side - Tutorial details
+        # Create tabs for each category
+        self.tutorial_lists = {}
+        for category in TutorialCategory:
+            tab_widget = QWidget()
+            tab_layout = QVBoxLayout(tab_widget)
+            tab_layout.setContentsMargins(4, 4, 4, 4)
+
+            tutorial_list = QListWidget()
+            tutorial_list.setStyleSheet("""
+                QListWidget {
+                    border: none;
+                    background-color: white;
+                    selection-background-color: #4a86e8;
+                    selection-color: white;
+                    font-size: 13px;
+                }
+                QListWidget::item {
+                    padding: 12px;
+                    border-bottom: 1px solid #f1f3f4;
+                }
+                QListWidget::item:hover {
+                    background-color: #e3f2fd;
+                }
+                QListWidget::item:selected {
+                    background-color: #4a86e8;
+                    color: white;
+                }
+            """)
+            tutorial_list.itemSelectionChanged.connect(self._on_tutorial_selected)
+
+            tab_layout.addWidget(tutorial_list)
+            self.tutorial_lists[category] = tutorial_list
+
+            # Add tab with icon
+            category_icons = {
+                TutorialCategory.GETTING_STARTED: "🚀",
+                TutorialCategory.EXPRESSION_TYPES: "🔧",
+                TutorialCategory.DATA_HANDLING: "📊",
+                TutorialCategory.ADVANCED_FEATURES: "⚡",
+                TutorialCategory.BEST_PRACTICES: "✨",
+                TutorialCategory.CUSTOM: "🔌"
+            }
+            icon = category_icons.get(category, "📚")
+            self.category_tabs.addTab(tab_widget, f"{icon} {category.value}")
+
+        left_layout.addWidget(self.category_tabs)
+
+        # Right panel - Tutorial details
         right_panel = QFrame()
         right_panel.setStyleSheet("""
             QFrame {
@@ -687,12 +976,34 @@ class UnifiedTutorialSelectionDialog(QDialog):
         """)
         right_layout.addWidget(self.details_text)
 
-        # Set panel proportions
-        content_layout.addWidget(left_panel, 1)
-        content_layout.addWidget(right_panel, 1)
-        layout.addLayout(content_layout)
+        # Plugin info section
+        plugin_info_label = QLabel("🔌 Plugin Information")
+        plugin_info_label.setFont(QFont("Arial", 12, QFont.Bold))
+        plugin_info_label.setStyleSheet("color: #2c3e50; margin-top: 8px; margin-bottom: 4px;")
+        right_layout.addWidget(plugin_info_label)
 
-        # Bottom controls
+        self.plugin_info_text = QTextEdit()
+        self.plugin_info_text.setReadOnly(True)
+        self.plugin_info_text.setMaximumHeight(100)
+        self.plugin_info_text.setStyleSheet("""
+            QTextEdit {
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+                padding: 8px;
+                font-size: 11px;
+                color: #6c757d;
+            }
+        """)
+        right_layout.addWidget(self.plugin_info_text)
+
+        # Set splitter proportions
+        main_splitter.addWidget(left_panel)
+        main_splitter.addWidget(right_panel)
+        main_splitter.setSizes([400, 600])
+        layout.addWidget(main_splitter)
+
+        # Bottom controls with exact styling
         controls_layout = QHBoxLayout()
         controls_layout.setContentsMargins(0, 16, 0, 0)
 
@@ -714,6 +1025,24 @@ class UnifiedTutorialSelectionDialog(QDialog):
         help_btn.clicked.connect(self._show_help)
         controls_layout.addWidget(help_btn)
 
+        # Plugin management button
+        manage_btn = QPushButton("🔧 Manage Plugins")
+        manage_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6f42c1;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #5a32a3;
+            }
+        """)
+        manage_btn.clicked.connect(self._manage_plugins)
+        controls_layout.addWidget(manage_btn)
+
         controls_layout.addStretch()
 
         # Close button
@@ -732,12 +1061,12 @@ class UnifiedTutorialSelectionDialog(QDialog):
             }
         """)
 
-        # Start tutorial button
+        # Start tutorial button with primary color
         self.start_button = QPushButton("🚀 Start Tutorial")
         self.start_button.setEnabled(False)
         self.start_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #4a86e8;
                 color: white;
                 border: none;
                 padding: 10px 24px;
@@ -746,7 +1075,7 @@ class UnifiedTutorialSelectionDialog(QDialog):
                 font-size: 14px;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #3d71d9;
             }
             QPushButton:disabled {
                 background-color: #adb5bd;
@@ -759,234 +1088,62 @@ class UnifiedTutorialSelectionDialog(QDialog):
 
     def _connect_signals(self):
         """Connect UI signals."""
-        self.tutorial_list.itemSelectionChanged.connect(self._on_tutorial_selected)
         self.start_button.clicked.connect(self._start_selected_tutorial)
         self.close_button.clicked.connect(self.close)
 
     def _load_tutorials(self):
-        """Load available tutorials with comprehensive content."""
-        # Module 1: Basic Compound Action
-        module_1 = UnifiedTutorial(
-            id="unified_module_1_basic",
-            title="Module 1: Your First Compound Action",
-            description="Learn to create basic compound actions with lookup and notification",
-            category=TutorialCategory.GETTING_STARTED,
-            difficulty=TutorialDifficulty.BEGINNER,
-            estimated_time="15 minutes",
-            learning_objectives=[
-                "Understand basic compound action structure and YAML compliance",
-                "Create your first action step with proper data flow",
-                "Use the JSON Path Selector for basic data selection",
-                "Generate compliant YAML with mandatory action_name and steps fields",
-                "Validate workflow using the built-in compliance system"
-            ],
-            steps=[
-                UnifiedTutorialStep(
-                    title="Welcome to Compound Actions",
-                    description="Welcome! This tutorial teaches you to create Moveworks compound actions.",
-                    instruction="We'll build an employee onboarding notification system that demonstrates data lookup and notification patterns. Click 'Next' to begin.",
-                    action_type="info"
-                ),
-                UnifiedTutorialStep(
-                    title="Set Compound Action Name",
-                    description="Every Moveworks workflow needs a unique compound action name.",
-                    instruction="Click in the 'Compound Action Name' field and enter the name below. This identifies your workflow in the Moveworks system.",
-                    target_element="compound_action_name_field",
-                    action_type="copy_paste",
-                    copy_paste_data="employee_onboarding_notification"
-                ),
-                UnifiedTutorialStep(
-                    title="Add Your First Action Step",
-                    description="Action steps perform API calls or system operations.",
-                    instruction="Click the '⚡ Add Action Step' button to create your first step. This will open the action configuration panel.",
-                    target_element="add_action_button",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Configure Action Name",
-                    description="Each action step needs a unique name for data referencing.",
-                    instruction="In the Action Name field, enter the name below. This will be used to reference the action's output data.",
-                    target_element="action_config_panel",
-                    action_type="copy_paste",
-                    copy_paste_data="mw.get_user_by_email"
-                ),
-                UnifiedTutorialStep(
-                    title="Set Output Key",
-                    description="The output key defines how to reference this step's results.",
-                    instruction="Enter the output key below. This creates a data reference 'data.user_info' for use in later steps.",
-                    target_element="action_config_panel",
-                    action_type="copy_paste",
-                    copy_paste_data="user_info"
-                ),
-                UnifiedTutorialStep(
-                    title="Add Input Arguments",
-                    description="Input arguments provide data to the action.",
-                    instruction="Click 'Add Argument' and create an input parameter. Use 'email' as the key and 'data.input_email' as the value.",
-                    target_element="add_input_arg_btn",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Provide Sample JSON Output",
-                    description="JSON output helps with data path selection in later steps.",
-                    instruction="Paste the sample JSON below into the JSON Output field. This represents what the user lookup action will return.",
-                    target_element="json_output_edit",
-                    action_type="copy_paste",
-                    copy_paste_data=get_tutorial_json_data("user_lookup"),
-                    sample_json=get_tutorial_json_data("user_lookup")
-                ),
-                UnifiedTutorialStep(
-                    title="Parse JSON for Data Selection",
-                    description="Parsing JSON enables the JSON Path Selector for easy data referencing.",
-                    instruction="Click 'Parse & Save JSON Output' to process the JSON and enable data path selection tools.",
-                    target_element="parse_json_btn",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Add Notification Step",
-                    description="Now we'll add a second step to send a notification.",
-                    instruction="Click '⚡ Add Action Step' again to create a notification step that will use data from the first step.",
-                    target_element="add_action_button",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Configure Notification Action",
-                    description="Configure the notification step with proper data references.",
-                    instruction="Set the action name to 'mw.send_notification' and output key to 'notification_result'. This creates our notification step.",
-                    target_element="action_config_panel",
-                    action_type="copy_paste",
-                    copy_paste_data="mw.send_notification"
-                ),
-                UnifiedTutorialStep(
-                    title="Explore JSON Path Selector",
-                    description="The JSON Path Selector helps you reference data from previous steps.",
-                    instruction="Click on the 'JSON Explorer' tab to see available data paths from your user lookup step.",
-                    target_element="json_path_selector_button",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Review Generated YAML",
-                    description="Check the YAML Preview to see your complete compound action.",
-                    instruction="Click the 'YAML Preview' tab to see the generated Moveworks-compliant YAML with proper structure and data references.",
-                    target_element="yaml_preview_panel",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Validate Your Workflow",
-                    description="Always validate your workflow before deployment.",
-                    instruction="Click the 'Validate Now' button to check for compliance issues and ensure your workflow meets Moveworks standards.",
-                    target_element="validate_button",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Module 1 Complete!",
-                    description="Congratulations! You've created your first Moveworks compound action.",
-                    instruction="You've learned the fundamentals: compound action naming, action steps, data flow, and validation. Ready for Module 2?",
-                    action_type="info"
-                )
-            ]
-        )
+        """Load tutorials from plugin manager and populate the UI."""
+        # Clear existing tutorials
+        for tutorial_list in self.tutorial_lists.values():
+            tutorial_list.clear()
 
-        # Module 2: Interactive Basic Workflow (from integrated system)
-        module_2 = UnifiedTutorial(
-            id="unified_interactive_basic",
-            title="Interactive Basic Workflow",
-            description="Hands-on tutorial with copy-paste examples and real-time guidance",
-            category=TutorialCategory.GETTING_STARTED,
-            difficulty=TutorialDifficulty.BEGINNER,
-            estimated_time="10 minutes",
-            learning_objectives=[
-                "Experience real-time tutorial interaction",
-                "Practice copy-paste workflow creation",
-                "Learn JSON data exploration",
-                "Understand YAML generation process"
-            ],
-            steps=[
-                UnifiedTutorialStep(
-                    title="Welcome to Interactive Learning",
-                    description="This tutorial provides hands-on experience with copy-paste examples.",
-                    instruction="You'll create a real workflow while learning. The tutorial panel is draggable - move it if it covers important areas.",
-                    action_type="info"
-                ),
-                UnifiedTutorialStep(
-                    title="Set Action Name with Copy-Paste",
-                    description="Let's start by setting the compound action name using our copy-paste feature.",
-                    instruction="Use the copy button below to automatically fill the Action Name field, or manually copy and paste.",
-                    target_element="compound_action_name_field",
-                    action_type="copy_paste",
-                    copy_paste_data="interactive_demo_workflow"
-                ),
-                UnifiedTutorialStep(
-                    title="Add Action Step",
-                    description="Create your first action step.",
-                    instruction="Click the 'Add Action Step' button to create a new step. This opens the configuration panel.",
-                    target_element="add_action_button",
-                    action_type="click"
-                ),
-                UnifiedTutorialStep(
-                    title="Configure with JSON Example",
-                    description="Add sample JSON to enable data exploration.",
-                    instruction="Copy the JSON example below into the JSON Output field. This enables the JSON Path Selector.",
-                    target_element="json_output_edit",
-                    action_type="copy_paste",
-                    copy_paste_data=get_tutorial_json_data("basic_example"),
-                    sample_json=get_tutorial_json_data("basic_example")
-                ),
-                UnifiedTutorialStep(
-                    title="Interactive Tutorial Complete",
-                    description="You've experienced the interactive tutorial system!",
-                    instruction="This tutorial demonstrated copy-paste functionality, real-time guidance, and JSON exploration. Try other tutorials to learn more!",
-                    action_type="info"
-                )
-            ]
-        )
+        # Load tutorials from plugin manager
+        all_tutorials = self.plugin_manager.get_all_tutorials()
 
-        # Store tutorials
-        self.tutorials = {
-            "unified_module_1_basic": module_1,
-            "unified_interactive_basic": module_2
-        }
+        # Group tutorials by category
+        for tutorial in all_tutorials:
+            category_list = self.tutorial_lists.get(tutorial.category)
+            if category_list:
+                item = QListWidgetItem()
 
-        # Populate tutorial list
-        for tutorial_id, tutorial in self.tutorials.items():
-            item = QListWidgetItem()
+                # Create tutorial item text with icons
+                difficulty_icon = {
+                    TutorialDifficulty.BEGINNER: "🟢",
+                    TutorialDifficulty.INTERMEDIATE: "🟡",
+                    TutorialDifficulty.ADVANCED: "🔴"
+                }.get(tutorial.difficulty, "⚪")
 
-            # Create tutorial item text with icons
-            difficulty_icon = {
-                TutorialDifficulty.BEGINNER: "🟢",
-                TutorialDifficulty.INTERMEDIATE: "🟡",
-                TutorialDifficulty.ADVANCED: "🔴"
-            }.get(tutorial.difficulty, "⚪")
+                item_text = f"{difficulty_icon} {tutorial.title}\n"
+                item_text += f"   {tutorial.description}\n"
+                item_text += f"   ⏱️ {tutorial.estimated_time} | 📚 {tutorial.difficulty.value}"
+                if tutorial.prerequisites:
+                    item_text += f" | 📋 Prerequisites: {len(tutorial.prerequisites)}"
 
-            category_icon = {
-                TutorialCategory.GETTING_STARTED: "🚀",
-                TutorialCategory.EXPRESSION_TYPES: "🔧",
-                TutorialCategory.DATA_HANDLING: "📊",
-                TutorialCategory.ADVANCED_FEATURES: "⚡",
-                TutorialCategory.BEST_PRACTICES: "✨"
-            }.get(tutorial.category, "📚")
+                item.setText(item_text)
+                item.setData(Qt.UserRole, tutorial.id)
 
-            item_text = f"{difficulty_icon} {category_icon} {tutorial.title}\n"
-            item_text += f"   {tutorial.description}\n"
-            item_text += f"   ⏱️ {tutorial.estimated_time} | 📚 {tutorial.difficulty.value}"
-
-            item.setText(item_text)
-            item.setData(Qt.UserRole, tutorial_id)
-
-            self.tutorial_list.addItem(item)
+                category_list.addItem(item)
 
     def _on_tutorial_selected(self):
-        """Handle tutorial selection."""
-        current_item = self.tutorial_list.currentItem()
-        if current_item:
-            tutorial_id = current_item.data(Qt.UserRole)
-            tutorial = self.tutorials.get(tutorial_id)
+        """Handle tutorial selection from any category tab."""
+        # Find which list has a selection
+        selected_tutorial = None
+        selected_tutorial_id = None
 
-            if tutorial:
-                self._show_tutorial_details(tutorial)
-                self.start_button.setEnabled(True)
+        for category_list in self.tutorial_lists.values():
+            current_item = category_list.currentItem()
+            if current_item:
+                selected_tutorial_id = current_item.data(Qt.UserRole)
+                selected_tutorial = self.plugin_manager.get_tutorial_by_id(selected_tutorial_id)
+                break
+
+        if selected_tutorial:
+            self._show_tutorial_details(selected_tutorial)
+            self.start_button.setEnabled(True)
         else:
             self.start_button.setEnabled(False)
             self.details_text.clear()
+            self.plugin_info_text.clear()
 
     def _show_tutorial_details(self, tutorial: UnifiedTutorial):
         """Show detailed information about the selected tutorial."""
@@ -1018,26 +1175,119 @@ class UnifiedTutorialSelectionDialog(QDialog):
         <div style="background-color: #f8f9fa; padding: 12px; border-radius: 6px;">
             <p style="margin: 0;"><strong>📚 Tutorial Structure:</strong> {len(tutorial.steps)} interactive steps</p>
             <p style="margin: 8px 0 0 0;"><strong>🎮 Features:</strong> Copy-paste examples, visual highlighting, real-time guidance</p>
+            <p style="margin: 8px 0 0 0;"><strong>📅 Version:</strong> {tutorial.version} | <strong>👤 Author:</strong> {tutorial.author}</p>
         </div>
         """
 
         self.details_text.setHtml(details_html)
 
+        # Show plugin information
+        plugin_info = self.plugin_manager.plugin_metadata.get(tutorial.plugin_source, {})
+        plugin_html = f"""
+        <p><strong>Plugin:</strong> {plugin_info.get('name', 'Unknown')}</p>
+        <p><strong>Version:</strong> {plugin_info.get('version', 'Unknown')} | <strong>Source:</strong> {plugin_info.get('source', 'Unknown')}</p>
+        <p><strong>Description:</strong> {plugin_info.get('description', 'No description available')}</p>
+        """
+        self.plugin_info_text.setHtml(plugin_html)
+
     def _start_selected_tutorial(self):
         """Start the selected tutorial."""
-        current_item = self.tutorial_list.currentItem()
-        if current_item:
-            tutorial_id = current_item.data(Qt.UserRole)
-            self.tutorial_selected.emit(tutorial_id)
+        # Find selected tutorial
+        selected_tutorial_id = None
+        for category_list in self.tutorial_lists.values():
+            current_item = category_list.currentItem()
+            if current_item:
+                selected_tutorial_id = current_item.data(Qt.UserRole)
+                break
+
+        if selected_tutorial_id:
+            self.tutorial_selected.emit(selected_tutorial_id)
             self.close()
 
+    def _import_plugin(self):
+        """Import a plugin from file."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Tutorial Plugin",
+            "",
+            "Python Files (*.py);;All Files (*)"
+        )
+
+        if file_path:
+            success = self.plugin_manager.import_plugin_from_file(file_path)
+            if success:
+                QMessageBox.information(
+                    self,
+                    "Plugin Imported",
+                    f"Plugin imported successfully from {file_path}"
+                )
+                self._load_tutorials()  # Refresh tutorial list
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Import Failed",
+                    f"Failed to import plugin from {file_path}"
+                )
+
+    def _manage_plugins(self):
+        """Show plugin management dialog."""
+        # Create a simple plugin management dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Plugin Management")
+        dialog.setMinimumSize(600, 400)
+
+        layout = QVBoxLayout(dialog)
+
+        # Plugin list
+        plugin_list = QListWidget()
+        for plugin_id, metadata in self.plugin_manager.plugin_metadata.items():
+            item_text = f"{metadata.get('name', plugin_id)} v{metadata.get('version', '1.0.0')}\n"
+            item_text += f"   {metadata.get('description', 'No description')}\n"
+            item_text += f"   📊 Tutorials: {metadata.get('tutorial_count', 0)}"
+
+            item = QListWidgetItem(item_text)
+            item.setData(Qt.UserRole, plugin_id)
+            plugin_list.addItem(item)
+
+        layout.addWidget(QLabel("Loaded Plugins:"))
+        layout.addWidget(plugin_list)
+
+        # Buttons
+        button_layout = QHBoxLayout()
+
+        reload_btn = QPushButton("🔄 Reload Plugin")
+        reload_btn.clicked.connect(lambda: self._reload_selected_plugin(plugin_list))
+        button_layout.addWidget(reload_btn)
+
+        button_layout.addStretch()
+
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(dialog.close)
+        button_layout.addWidget(close_btn)
+
+        layout.addLayout(button_layout)
+
+        dialog.exec()
+
+    def _reload_selected_plugin(self, plugin_list: QListWidget):
+        """Reload the selected plugin."""
+        current_item = plugin_list.currentItem()
+        if current_item:
+            plugin_id = current_item.data(Qt.UserRole)
+            success = self.plugin_manager.reload_plugin(plugin_id)
+            if success:
+                QMessageBox.information(self, "Plugin Reloaded", f"Plugin {plugin_id} reloaded successfully")
+                self._load_tutorials()  # Refresh tutorial list
+            else:
+                QMessageBox.warning(self, "Reload Failed", f"Failed to reload plugin {plugin_id}")
+
     def _show_help(self):
-        """Show help information about the tutorial system."""
+        """Show help information about the unified tutorial system."""
         help_text = """
-        <h2>🎓 Tutorial System Help</h2>
+        <h2>🎓 Unified Tutorial System Help</h2>
 
         <h3>🚀 Getting Started</h3>
-        <p>Select a tutorial from the list to see its details, then click "Start Tutorial" to begin interactive learning.</p>
+        <p>Select a tutorial from any category tab to see its details, then click "Start Tutorial" to begin interactive learning.</p>
 
         <h3>🎮 Tutorial Features</h3>
         <ul>
@@ -1045,6 +1295,7 @@ class UnifiedTutorialSelectionDialog(QDialog):
             <li><strong>🎯 Visual Highlighting:</strong> Important UI elements are highlighted during tutorials</li>
             <li><strong>📱 Draggable Panel:</strong> Move the tutorial panel if it covers important areas</li>
             <li><strong>⏭️ Step Navigation:</strong> Use Previous/Next buttons or skip tutorials anytime</li>
+            <li><strong>💾 Position Memory:</strong> Tutorial panel remembers your preferred position</li>
         </ul>
 
         <h3>📚 Tutorial Categories</h3>
@@ -1054,6 +1305,14 @@ class UnifiedTutorialSelectionDialog(QDialog):
             <li><strong>📊 Data Handling:</strong> JSON processing and data flow</li>
             <li><strong>⚡ Advanced Features:</strong> Complex workflows and integrations</li>
             <li><strong>✨ Best Practices:</strong> Optimization and compliance tips</li>
+            <li><strong>🔌 Custom:</strong> User-imported tutorial plugins</li>
+        </ul>
+
+        <h3>🔌 Plugin System</h3>
+        <ul>
+            <li><strong>📥 Import Plugins:</strong> Add new tutorial plugins from Python files</li>
+            <li><strong>🔧 Manage Plugins:</strong> View and reload existing plugins</li>
+            <li><strong>🔄 Auto-Discovery:</strong> Plugins are automatically discovered and loaded</li>
         </ul>
 
         <h3>🎯 Difficulty Levels</h3>
@@ -1066,23 +1325,29 @@ class UnifiedTutorialSelectionDialog(QDialog):
         <p><strong>💡 Tip:</strong> Complete tutorials in order for the best learning experience!</p>
         """
 
-        from PySide6.QtWidgets import QMessageBox
         help_dialog = QMessageBox(self)
-        help_dialog.setWindowTitle("Tutorial System Help")
+        help_dialog.setWindowTitle("Unified Tutorial System Help")
         help_dialog.setTextFormat(Qt.RichText)
         help_dialog.setText(help_text)
         help_dialog.setStandardButtons(QMessageBox.Ok)
         help_dialog.exec()
 
+    def refresh_tutorials(self):
+        """Refresh the tutorial list from plugin manager."""
+        self._load_tutorials()
+
 
 class UnifiedTutorialManager:
     """
-    Unified tutorial manager combining the best features from all systems:
-    - Non-blocking interactive overlay
-    - Comprehensive tutorial content
-    - Clean selection dialog
-    - Copy-paste functionality
-    - Progress tracking and navigation
+    Main controller for the unified tutorial system with plugin-based architecture.
+
+    Features:
+    - Plugin-based tutorial loading and management
+    - Non-blocking interactive overlay with exact visual styling
+    - Comprehensive tutorial content migration
+    - Clean selection dialog with category organization
+    - Copy-paste functionality and position memory
+    - Complete codebase cleanup and deprecation handling
     """
 
     def __init__(self, main_window):
@@ -1092,26 +1357,52 @@ class UnifiedTutorialManager:
         self.tutorial_overlay: Optional[UnifiedTutorialOverlay] = None
         self.selection_dialog: Optional[UnifiedTutorialSelectionDialog] = None
 
+        # Initialize plugin manager and load plugins
+        self.plugin_manager = PluginManager()
+        self._load_plugins()
+
+    def _load_plugins(self):
+        """Load all available tutorial plugins."""
+        try:
+            loaded_count = self.plugin_manager.load_all_plugins()
+            print(f"✓ Loaded {loaded_count} tutorial plugins")
+
+            # Log loaded tutorials
+            all_tutorials = self.plugin_manager.get_all_tutorials()
+            print(f"✓ Available tutorials: {len(all_tutorials)}")
+
+            for category in TutorialCategory:
+                category_tutorials = self.plugin_manager.get_tutorials_by_category(category)
+                if category_tutorials:
+                    print(f"  - {category.value}: {len(category_tutorials)} tutorials")
+
+        except Exception as e:
+            print(f"✗ Error loading plugins: {e}")
+
     def show_tutorial_selection(self):
         """Show the unified tutorial selection dialog."""
         if not self.selection_dialog:
-            self.selection_dialog = UnifiedTutorialSelectionDialog(self.main_window)
+            self.selection_dialog = UnifiedTutorialSelectionDialog(self.plugin_manager, self.main_window)
             self.selection_dialog.tutorial_selected.connect(self.start_tutorial)
+
+        # Refresh tutorials in case plugins were updated
+        self.selection_dialog.refresh_tutorials()
 
         self.selection_dialog.show()
         self.selection_dialog.raise_()
         self.selection_dialog.activateWindow()
 
     def start_tutorial(self, tutorial_id: str) -> bool:
-        """Start a unified tutorial."""
-        # Get tutorial from selection dialog
-        if not self.selection_dialog or tutorial_id not in self.selection_dialog.tutorials:
+        """Start a unified tutorial by ID."""
+        tutorial = self.plugin_manager.get_tutorial_by_id(tutorial_id)
+        if not tutorial:
+            print(f"✗ Tutorial not found: {tutorial_id}")
             return False
 
-        self.current_tutorial = self.selection_dialog.tutorials[tutorial_id]
+        self.current_tutorial = tutorial
         self.current_step_index = 0
 
-        # Create tutorial overlay
+        # Create tutorial overlay with exact visual styling
         self.tutorial_overlay = UnifiedTutorialOverlay(self.main_window)
         self.tutorial_overlay.next_step_requested.connect(self._next_step)
         self.tutorial_overlay.previous_step_requested.connect(self._previous_step)
@@ -1119,24 +1410,27 @@ class UnifiedTutorialManager:
 
         # Start first step
         self._show_current_step()
+        print(f"✓ Started tutorial: {tutorial.title}")
         return True
 
     def _show_current_step(self):
-        """Show the current tutorial step."""
+        """Show the current tutorial step with enhanced features."""
         if not self.current_tutorial or self.current_step_index >= len(self.current_tutorial.steps):
             self._complete_tutorial()
             return
 
         step = self.current_tutorial.steps[self.current_step_index]
 
-        # Special handling for specific steps (from integrated system)
-        if step.title == "Explore JSON Path Selector":
+        # Special handling for specific steps (enhanced from integrated system)
+        if step.title == "Explore JSON Path Selector" or "JSON Explorer" in step.instruction:
             self._activate_json_explorer_tab()
-        elif step.title == "Review Generated YAML":
+        elif step.title == "Review Generated YAML" or "YAML Preview" in step.instruction:
             self._activate_yaml_preview_tab()
 
+        # Find target widget with enhanced mapping
         target_widget = self._find_target_widget(step.target_element)
 
+        # Show step with exact visual styling
         self.tutorial_overlay.show_step(
             step,
             target_widget,
@@ -1145,18 +1439,20 @@ class UnifiedTutorialManager:
         )
 
     def _find_target_widget(self, target_element: Optional[str]) -> Optional[QWidget]:
-        """Find the target widget for highlighting."""
+        """Find the target widget for highlighting with comprehensive mapping."""
         if not target_element:
             return None
 
-        # Try to find widget by object name
+        # Try to find widget by object name first
         widget = self.main_window.findChild(QWidget, target_element)
         if widget:
             return widget
 
-        # Try common widget mappings
+        # Enhanced widget mappings for all legacy systems
         widget_mappings = {
+            # Basic mappings
             "add_action_button": "add_action_btn",
+            "add_action_btn": "add_action_btn",
             "compound_action_name_field": "action_name_edit",
             "action_config_panel": "config_panel",
             "json_output_edit": "action_json_edit",
@@ -1164,7 +1460,23 @@ class UnifiedTutorialManager:
             "add_input_arg_btn": "add_input_arg_btn",
             "json_path_selector_button": "enhanced_json_panel",
             "yaml_preview_panel": "yaml_panel",
-            "validate_button": "validate_btn"
+            "validate_button": "validate_btn",
+
+            # Advanced expression mappings
+            "add_switch_button": "add_switch_btn",
+            "add_for_button": "add_for_btn",
+            "add_try_catch_button": "add_try_catch_btn",
+            "add_parallel_button": "add_parallel_btn",
+            "add_script_button": "add_script_btn",
+            "switch_config_panel": "switch_config_panel",
+            "for_config_panel": "for_config_panel",
+            "try_catch_config_panel": "try_catch_config_panel",
+            "parallel_config_panel": "parallel_config_panel",
+            "script_config_panel": "script_config_panel",
+
+            # Legacy system compatibility
+            "tutorial_panel": "tutorial_overlay",
+            "tutorial_dialog": "tutorial_selection_dialog"
         }
 
         mapped_name = widget_mappings.get(target_element)
@@ -1172,6 +1484,11 @@ class UnifiedTutorialManager:
             widget = self.main_window.findChild(QWidget, mapped_name)
             if widget:
                 return widget
+
+        # Try partial name matching for dynamic widgets
+        for child in self.main_window.findChildren(QWidget):
+            if child.objectName() and target_element in child.objectName():
+                return child
 
         return None
 
@@ -1183,8 +1500,8 @@ class UnifiedTutorialManager:
             if hasattr(right_tabs, 'setCurrentIndex'):
                 # Assuming JSON Explorer is at index 0
                 right_tabs.setCurrentIndex(0)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Could not activate JSON Explorer tab: {e}")
 
     def _activate_yaml_preview_tab(self):
         """Activate the YAML Preview tab."""
@@ -1194,8 +1511,8 @@ class UnifiedTutorialManager:
             if hasattr(right_tabs, 'setCurrentIndex'):
                 # Assuming YAML Preview is at index 1
                 right_tabs.setCurrentIndex(1)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Could not activate YAML Preview tab: {e}")
 
     def _next_step(self):
         """Move to the next tutorial step."""
@@ -1218,26 +1535,35 @@ class UnifiedTutorialManager:
             self.tutorial_overlay = None
         self.current_tutorial = None
         self.current_step_index = 0
+        print("Tutorial cancelled by user")
 
     def _complete_tutorial(self):
-        """Complete the current tutorial."""
+        """Complete the current tutorial with enhanced feedback."""
         if self.tutorial_overlay:
             self.tutorial_overlay.hide()
             self.tutorial_overlay = None
 
-        # Show completion message
-        from PySide6.QtWidgets import QMessageBox
+        # Show enhanced completion message
         if self.current_tutorial:
+            completion_message = f"🎉 Tutorial Complete!\n\n"
+            completion_message += f"You've completed '{self.current_tutorial.title}'.\n\n"
+            completion_message += f"Learning Objectives Achieved:\n"
+            for i, objective in enumerate(self.current_tutorial.learning_objectives[:3], 1):
+                completion_message += f"{i}. {objective}\n"
+            if len(self.current_tutorial.learning_objectives) > 3:
+                completion_message += f"...and {len(self.current_tutorial.learning_objectives) - 3} more!\n"
+            completion_message += f"\nReady to try another tutorial?"
+
+            from PySide6.QtWidgets import QMessageBox
             QMessageBox.information(
                 self.main_window,
-                "🎉 Tutorial Complete!",
-                f"Congratulations! You've completed '{self.current_tutorial.title}'.\n\n"
-                f"You've learned: {', '.join(self.current_tutorial.learning_objectives[:2])}...\n\n"
-                f"Ready to try another tutorial?"
+                "Tutorial Complete!",
+                completion_message
             )
 
         self.current_tutorial = None
         self.current_step_index = 0
+        print("Tutorial completed successfully")
 
     def is_tutorial_active(self) -> bool:
         """Check if a tutorial is currently active."""
@@ -1253,5 +1579,61 @@ class UnifiedTutorialManager:
             "title": self.current_tutorial.title,
             "current_step": self.current_step_index + 1,
             "total_steps": len(self.current_tutorial.steps),
-            "progress": (self.current_step_index + 1) / len(self.current_tutorial.steps) * 100
+            "progress": (self.current_step_index + 1) / len(self.current_tutorial.steps) * 100,
+            "category": self.current_tutorial.category.value,
+            "difficulty": self.current_tutorial.difficulty.value,
+            "plugin_source": self.current_tutorial.plugin_source
         }
+
+    def get_available_tutorials(self) -> List[UnifiedTutorial]:
+        """Get all available tutorials from all plugins."""
+        return self.plugin_manager.get_all_tutorials()
+
+    def get_tutorials_by_category(self, category: TutorialCategory) -> List[UnifiedTutorial]:
+        """Get tutorials filtered by category."""
+        return self.plugin_manager.get_tutorials_by_category(category)
+
+    def reload_plugins(self):
+        """Reload all plugins and refresh tutorial list."""
+        try:
+            # Reload all plugins
+            for plugin_id in list(self.plugin_manager.plugins.keys()):
+                self.plugin_manager.reload_plugin(plugin_id)
+
+            # Refresh selection dialog if open
+            if self.selection_dialog:
+                self.selection_dialog.refresh_tutorials()
+
+            print("✓ All plugins reloaded successfully")
+
+        except Exception as e:
+            print(f"✗ Error reloading plugins: {e}")
+
+    def import_plugin(self, file_path: str) -> bool:
+        """Import a new plugin from file."""
+        success = self.plugin_manager.import_plugin_from_file(file_path)
+        if success and self.selection_dialog:
+            self.selection_dialog.refresh_tutorials()
+        return success
+
+    def get_plugin_info(self) -> Dict[str, Dict[str, Any]]:
+        """Get information about all loaded plugins."""
+        return self.plugin_manager.plugin_metadata.copy()
+
+    def cleanup(self):
+        """Cleanup tutorial system resources."""
+        if self.tutorial_overlay:
+            self.tutorial_overlay.hide()
+            self.tutorial_overlay = None
+
+        if self.selection_dialog:
+            self.selection_dialog.close()
+            self.selection_dialog = None
+
+        # Cleanup all plugins
+        for plugin in self.plugin_manager.plugins.values():
+            plugin.cleanup()
+
+        print("Tutorial system cleanup completed")
+
+

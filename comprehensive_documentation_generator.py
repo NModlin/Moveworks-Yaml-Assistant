@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from help_system import help_system, HelpTopic, HelpSection
-from comprehensive_tutorial_system import tutorial_system
+from tutorials import UnifiedTutorialManager
 
 
 @dataclass

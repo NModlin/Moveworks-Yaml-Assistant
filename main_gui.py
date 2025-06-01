@@ -29,10 +29,8 @@ from yaml_generator import generate_yaml_string
 from validator import comprehensive_validate
 from error_display import ErrorListWidget, ValidationDialog, StatusIndicator, HelpDialog
 from help_system import get_tooltip, get_contextual_help
-from tutorial_system import TutorialManager, TutorialDialog
-from integrated_tutorial_system import InteractiveTutorialManager
-from tutorial_integration import TutorialIntegrationManager
-from unified_tutorial_system import UnifiedTutorialManager
+# Unified tutorial system
+from tutorials import UnifiedTutorialManager
 from template_library import TemplateBrowserDialog, template_library
 from enhanced_json_selector import EnhancedJsonPathSelector
 from contextual_examples import ContextualExamplesPanel
@@ -321,6 +319,10 @@ class StepConfigurationPanel(QStackedWidget):
         self.action_input_args_table.horizontalHeader().setStretchLastSection(True)
         self.action_input_args_table.itemChanged.connect(self._on_action_data_changed)
         self.action_input_args_table.setToolTip(get_tooltip("input_args"))
+        # Set minimum height to ensure input fields are fully visible
+        self.action_input_args_table.setMinimumHeight(120)
+        # Set reasonable maximum height to prevent excessive growth
+        self.action_input_args_table.setMaximumHeight(300)
         input_args_layout.addWidget(self.action_input_args_table)
 
         # Buttons for input args
@@ -499,6 +501,10 @@ class StepConfigurationPanel(QStackedWidget):
         self.script_input_args_table.setHorizontalHeaderLabels(["Key", "Value"])
         self.script_input_args_table.horizontalHeader().setStretchLastSection(True)
         self.script_input_args_table.itemChanged.connect(self._on_script_data_changed)
+        # Set minimum height to ensure input fields are fully visible
+        self.script_input_args_table.setMinimumHeight(120)
+        # Set reasonable maximum height to prevent excessive growth
+        self.script_input_args_table.setMaximumHeight(300)
         input_args_layout.addWidget(self.script_input_args_table)
 
         # Buttons for input args
@@ -585,7 +591,9 @@ class StepConfigurationPanel(QStackedWidget):
 
         # Cases list widget
         self.switch_cases_list = QListWidget()
-        self.switch_cases_list.setMaximumHeight(150)
+        # Increase height to ensure better visibility
+        self.switch_cases_list.setMinimumHeight(100)
+        self.switch_cases_list.setMaximumHeight(250)
         self.switch_cases_list.itemClicked.connect(self._on_switch_case_selected)
         cases_layout.addWidget(self.switch_cases_list)
 
@@ -711,7 +719,9 @@ class StepConfigurationPanel(QStackedWidget):
         self.return_output_mapper_table.setColumnCount(2)
         self.return_output_mapper_table.setHorizontalHeaderLabels(["Output Key", "Data Path"])
         self.return_output_mapper_table.horizontalHeader().setStretchLastSection(True)
-        self.return_output_mapper_table.setMaximumHeight(200)
+        # Increase height to ensure input fields are fully visible
+        self.return_output_mapper_table.setMinimumHeight(120)
+        self.return_output_mapper_table.setMaximumHeight(350)
         self.return_output_mapper_table.itemChanged.connect(self._on_return_data_changed)
         self.return_output_mapper_table.itemChanged.connect(lambda: self.return_validation_timer.start(300))
 
@@ -884,7 +894,9 @@ class StepConfigurationPanel(QStackedWidget):
 
         # Try steps list
         self.try_steps_list = QListWidget()
-        self.try_steps_list.setMaximumHeight(150)
+        # Increase height to ensure better visibility
+        self.try_steps_list.setMinimumHeight(100)
+        self.try_steps_list.setMaximumHeight(250)
         self.try_steps_list.setToolTip("List of steps to execute in the try block")
         try_layout.addWidget(self.try_steps_list)
 
@@ -965,7 +977,9 @@ class StepConfigurationPanel(QStackedWidget):
 
         # Catch steps list
         self.catch_steps_list = QListWidget()
-        self.catch_steps_list.setMaximumHeight(150)
+        # Increase height to ensure better visibility
+        self.catch_steps_list.setMinimumHeight(100)
+        self.catch_steps_list.setMaximumHeight(250)
         self.catch_steps_list.setToolTip("List of steps to execute in the catch block")
         catch_layout.addWidget(self.catch_steps_list)
 
@@ -1113,7 +1127,9 @@ class StepConfigurationPanel(QStackedWidget):
         for_loop_layout.addWidget(for_steps_header)
 
         self.parallel_for_steps_list = QListWidget()
-        self.parallel_for_steps_list.setMaximumHeight(120)
+        # Increase height to ensure better visibility
+        self.parallel_for_steps_list.setMinimumHeight(80)
+        self.parallel_for_steps_list.setMaximumHeight(200)
         for_loop_layout.addWidget(self.parallel_for_steps_list)
 
         # For loop controls
@@ -1171,7 +1187,9 @@ class StepConfigurationPanel(QStackedWidget):
         branches_layout.addWidget(branches_header)
 
         self.parallel_branches_list = QListWidget()
-        self.parallel_branches_list.setMaximumHeight(120)
+        # Increase height to ensure better visibility
+        self.parallel_branches_list.setMinimumHeight(80)
+        self.parallel_branches_list.setMaximumHeight(200)
         branches_layout.addWidget(self.parallel_branches_list)
 
         # Branches controls
@@ -1787,12 +1805,12 @@ class StepConfigurationPanel(QStackedWidget):
                 self.action_name_indicator.setText("✓")
                 self.action_name_indicator.setStyleSheet("color: green; font-weight: bold;")
                 self.action_name_indicator.setToolTip(f"Valid Moveworks action: {action_name}")
-                self.action_name_edit.setStyleSheet("border: 2px solid #4caf50; background-color: #e8f5e8;")
+                self.action_name_edit.setStyleSheet("color: #2c3e50; border: 2px solid #4caf50; background-color: #e8f5e8; padding: 6px 10px; font-size: 13px; font-weight: 500;")
             else:
                 self.action_name_indicator.setText("?")
                 self.action_name_indicator.setStyleSheet("color: orange; font-weight: bold;")
                 self.action_name_indicator.setToolTip(f"Valid format but not in Moveworks catalog: {action_name}")
-                self.action_name_edit.setStyleSheet("border: 2px solid #ff9800; background-color: #fff3e0;")
+                self.action_name_edit.setStyleSheet("color: #2c3e50; border: 2px solid #ff9800; background-color: #fff3e0; padding: 6px 10px; font-size: 13px; font-weight: 500;")
         else:
             self.action_name_indicator.setText("✗")
             self.action_name_indicator.setStyleSheet("color: red; font-weight: bold;")
@@ -1807,7 +1825,7 @@ class StepConfigurationPanel(QStackedWidget):
                 tooltip += f"\n\nSuggestions:\n{suggestions}"
 
             self.action_name_indicator.setToolTip(tooltip)
-            self.action_name_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+            self.action_name_edit.setStyleSheet("color: #2c3e50; border: 2px solid #f44336; background-color: #ffebee; padding: 6px 10px; font-size: 13px; font-weight: 500;")
 
     def _validate_script_code_field(self):
         """Validate script code field with real-time feedback."""
@@ -1943,21 +1961,21 @@ class StepConfigurationPanel(QStackedWidget):
 
     def _update_action_field_validation(self, result: ComplianceValidationResult):
         """Update action step field validation styling."""
-        # Reset styling
-        self.action_name_edit.setStyleSheet("")
+        # Reset styling with proper text color
+        self.action_name_edit.setStyleSheet("color: #2c3e50; background-color: #ffffff; border: 2px solid #bdc3c7; border-radius: 4px; padding: 6px 10px; font-size: 13px; font-weight: 500;")
         self.action_output_key_edit.setStyleSheet("")
 
         # Check for field naming errors
         for error in result.field_naming_errors:
             if "action_name" in error.lower():
-                self.action_name_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+                self.action_name_edit.setStyleSheet("color: #2c3e50; border: 2px solid #f44336; background-color: #ffebee; padding: 6px 10px; font-size: 13px; font-weight: 500;")
             elif "output_key" in error.lower():
                 self.action_output_key_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
 
         # Check for mandatory field errors
         for error in result.mandatory_field_errors:
             if "action_name" in error.lower():
-                self.action_name_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
+                self.action_name_edit.setStyleSheet("color: #2c3e50; border: 2px solid #f44336; background-color: #ffebee; padding: 6px 10px; font-size: 13px; font-weight: 500;")
             elif "output_key" in error.lower():
                 self.action_output_key_edit.setStyleSheet("border: 2px solid #f44336; background-color: #ffebee;")
 
@@ -3104,11 +3122,15 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # Initialize tutorial managers
-        self.tutorial_manager = TutorialManager(self)
-        self.interactive_tutorial_manager = InteractiveTutorialManager(self)
-        self.comprehensive_tutorial_manager = TutorialIntegrationManager(self)
-        self.unified_tutorial_manager = UnifiedTutorialManager(self)
+
+
+        # Initialize unified tutorial system
+        try:
+            self.unified_tutorial_manager = UnifiedTutorialManager(self)
+            print("✓ Unified tutorial system initialized successfully")
+        except Exception as e:
+            print(f"✗ Failed to initialize unified tutorial system: {e}")
+            self.unified_tutorial_manager = None
 
         # Create central widget and main layout
         central_widget = QWidget()
@@ -3807,30 +3829,22 @@ class MainWindow(QMainWindow):
         # Tutorial submenu
         tutorials_submenu = tools_menu.addMenu("📚 Tutorials")
 
-        # Unified Tutorial System (NEW - Best of all systems)
-        unified_tutorial_action = QAction("🎓 Interactive Tutorial System", self)
-        unified_tutorial_action.triggered.connect(self._show_unified_tutorials)
-        unified_tutorial_action.setToolTip("Enhanced tutorial system with copy-paste examples and real-time guidance")
-        tutorials_submenu.addAction(unified_tutorial_action)
+        # Unified Tutorial System (Plugin-based architecture)
+        if self.unified_tutorial_manager:
+            unified_tutorial_action = QAction("🎓 Interactive Tutorial System", self)
+            unified_tutorial_action.triggered.connect(self._show_unified_tutorials)
+            unified_tutorial_action.setToolTip("Plugin-based tutorial system with comprehensive content migration and enhanced features")
+            tutorials_submenu.addAction(unified_tutorial_action)
 
-        tutorials_submenu.addSeparator()
+            tutorials_submenu.addSeparator()
 
-        # Legacy tutorial systems (for compatibility)
-        legacy_submenu = tutorials_submenu.addMenu("📚 Legacy Tutorials")
+            # Tutorial Builder
+            create_tutorial_action = QAction("✨ Create New Tutorial...", self)
+            create_tutorial_action.triggered.connect(self._show_tutorial_builder)
+            create_tutorial_action.setToolTip("Visual tutorial builder for creating custom tutorials without programming")
+            tutorials_submenu.addAction(create_tutorial_action)
 
-        # Comprehensive Tutorial Series
-        comprehensive_tutorial_action = QAction("🚀 Comprehensive Tutorial Series", self)
-        comprehensive_tutorial_action.triggered.connect(self._show_comprehensive_tutorials)
-        comprehensive_tutorial_action.setToolTip("Complete 5-module tutorial series covering all Moveworks features")
-        legacy_submenu.addAction(comprehensive_tutorial_action)
 
-        interactive_tutorial_action = QAction("🎯 Interactive Basic Workflow", self)
-        interactive_tutorial_action.triggered.connect(self._start_interactive_tutorial)
-        legacy_submenu.addAction(interactive_tutorial_action)
-
-        all_tutorials_action = QAction("📖 All Tutorials...", self)
-        all_tutorials_action.triggered.connect(self._show_tutorials)
-        legacy_submenu.addAction(all_tutorials_action)
 
         # Help menu
         help_menu = menubar.addMenu("Help")
@@ -4403,22 +4417,69 @@ class MainWindow(QMainWindow):
 
                 QMessageBox.information(self, "Success", f"Template '{template.name}' loaded successfully!")
 
-    def _start_interactive_tutorial(self):
-        """Start the interactive basic workflow tutorial."""
-        self.interactive_tutorial_manager.start_tutorial("interactive_basic")
-
-    def _show_tutorials(self):
-        """Show the tutorial selection dialog."""
-        self.tutorial_manager.show_tutorial_dialog()
-
     def _show_unified_tutorials(self):
-        """Show the unified tutorial system."""
-        self.unified_tutorial_manager.show_tutorial_selection()
+        """Show the unified tutorial system with plugin architecture."""
+        if self.unified_tutorial_manager:
+            self.unified_tutorial_manager.show_tutorial_selection()
+        else:
+            QMessageBox.warning(
+                self,
+                "Tutorial System Unavailable",
+                "The unified tutorial system is not available. Please check the installation."
+            )
 
-    def _show_comprehensive_tutorials(self):
-        """Show the comprehensive tutorial series selection."""
-        # Use the basic tutorial manager's overlay approach instead of dialog approach
-        self.tutorial_manager.show_tutorial_dialog()
+    def _show_tutorial_builder(self):
+        """Show the JSON-based tutorial builder."""
+        try:
+            print("Opening JSON Tutorial Builder...")
+
+            # Import the JSON tutorial builder
+            from json_tutorial_builder import JSONTutorialBuilderDialog
+            print("✓ JSON Tutorial Builder imported successfully")
+
+            # Create and show the dialog
+            builder_dialog = JSONTutorialBuilderDialog(self)
+            builder_dialog.tutorial_created.connect(self._on_tutorial_created)
+            print("✓ JSON Tutorial Builder dialog created successfully")
+
+            print("Showing JSON Tutorial Builder dialog...")
+            builder_dialog.exec()
+
+        except ImportError as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Import Error: {e}")
+            print(f"Full traceback:\n{error_details}")
+
+            QMessageBox.warning(
+                self,
+                "Tutorial Builder Unavailable",
+                f"The JSON tutorial builder is not available:\n\n{str(e)}\n\n"
+                f"Please ensure json_tutorial_builder.py is in the application directory.\n\n"
+                f"Technical details:\n{error_details}"
+            )
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"General Error: {e}")
+            print(f"Full traceback:\n{error_details}")
+
+            QMessageBox.critical(
+                self,
+                "Tutorial Builder Error",
+                f"Failed to open JSON tutorial builder:\n\n{str(e)}\n\n"
+                f"Technical details:\n{error_details}"
+            )
+
+    def _on_tutorial_created(self, plugin_path: str):
+        """Handle tutorial creation completion."""
+        QMessageBox.information(
+            self,
+            "Tutorial Created",
+            f"Tutorial plugin created successfully!\n\n"
+            f"File: {plugin_path}\n\n"
+            f"The tutorial will be available after restarting the application."
+        )
 
     def _new_workflow(self):
         """Create a new workflow."""

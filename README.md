@@ -1,18 +1,21 @@
-# Enhanced Moveworks YAML Assistant
+# Moveworks YAML Assistant
 
 A comprehensive desktop application for creating and managing Moveworks Compound Action workflows with complete support for all expression types, strict Moveworks compliance, and advanced features.
 
 ## 🚀 Overview
 
-The Enhanced Moveworks YAML Assistant is the definitive solution for building complex Compound Action workflows. It provides complete support for all 8 Moveworks expression types, strict Moveworks compound action compliance, advanced data handling with `meta_info.user` support, intelligent validation with fix suggestions, and a comprehensive template library.
+The Moveworks YAML Assistant is the definitive solution for building complex Compound Action workflows. It provides complete support for all 8 Moveworks expression types, strict Moveworks compound action compliance, advanced data handling with `meta_info.user` support, intelligent validation with fix suggestions, and a comprehensive template library.
 
-**Key Achievements:**
-- ✅ **100% Expression Coverage**: All 8 expression types fully implemented
-- ✅ **Strict Moveworks Compliance**: Mandatory compound action structure with action_name and steps
-- ✅ **Perfect YAML Compliance**: Matches `yaml_syntex.md` format exactly
-- ✅ **Enhanced Data Context**: Complete `data.*` and `meta_info.user` support
-- ✅ **Comprehensive Templates**: Ready-to-use templates for all expression types
-- ✅ **Intelligent Validation**: Actionable fix suggestions for all issues
+**Key Features:**
+- ✅ **Complete Expression Support**: All 8 Moveworks expression types (action, script, switch, for, parallel, return, raise, try_catch)
+- ✅ **Strict Moveworks Compliance**: Enforced compound action structure with validation
+- ✅ **Perfect YAML Generation**: Compliant output matching official Moveworks specifications
+- ✅ **Advanced Data Handling**: Full support for `data.*` and `meta_info.user` references
+- ✅ **Interactive Tutorial System**: Step-by-step learning with hands-on practice
+- ✅ **Comprehensive Template Library**: Ready-to-use templates for common workflows
+- ✅ **Real-time Validation**: Intelligent validation with actionable fix suggestions
+- ✅ **JSON Path Selector**: Visual data navigation and selection tool
+- ✅ **Enhanced UI/UX**: Modern PySide6 interface with accessibility features
 
 ## ✨ Complete Expression Type Support
 
@@ -79,119 +82,175 @@ The Enhanced Moveworks YAML Assistant is the definitive solution for building co
 - **Progressive Difficulty**: From basic actions to complex control flow
 - **Contextual Help**: Context-aware assistance throughout the application
 
-## 📦 Installation
+## 📦 Quick Installation
 
-1. **Install Python 3.10+**
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## 🚀 Usage
-
-### Quick Start
-
-Use the startup script for easy launching:
+### Option 1: Automatic Setup (Recommended)
 ```bash
-# Launch the enhanced desktop GUI (default)
-python run_app.py
+# Navigate to project directory
+cd moveworks-yaml-assistant
 
-# Or explicitly specify GUI
+# Automatic setup and launch
+python run_app.py --setup-only
+```
+
+### Option 2: Manual Installation
+```bash
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate  # macOS/Linux
+# or
+.venv\Scripts\activate     # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Launch application
 python run_app.py gui
-
-# Launch CLI interface
-python run_app.py cli
-
-# Run comprehensive tests
-python run_app.py test
-
-# Run enhanced features tests
-python test_enhanced_features.py
-
-# Run comprehensive demo
-python demo_comprehensive_features.py
-
-# Show help
-python run_app.py help
 ```
 
-### Enhanced Desktop GUI Application
+**System Requirements:**
+- Python 3.10+ (required)
+- 4GB RAM (8GB recommended)
+- 500MB free storage
 
-Run the main GUI application with all enhanced features:
+📖 **[Complete Installation Guide](docs/user/installation.md)**
+
+## 🚀 Quick Start
+
+### Launch the Application
 ```bash
-python main_gui.py
+python run_app.py gui
 ```
 
-**New Features Available:**
-- 🏷️ Compound action name input for Moveworks compliance
-- 🎯 All 8 expression types in the step creation menu
-- 📚 Template browser with comprehensive templates
-- 🔍 Enhanced JSON path selector with meta_info support
-- ✅ Intelligent validation with Moveworks compliance checks
-- 📖 Interactive tutorials including compound action guidance
+### Create Your First Workflow (3 steps)
+1. **Set Compound Action Name**: `user_lookup_workflow`
+2. **Add Action Step**:
+   - Action Name: `mw.get_user_by_email`
+   - Output Key: `user_info`
+   - Input Args: `email` → `data.input_email`
+3. **Generate YAML**: Click "Generate YAML"
 
-### Testing & Demonstration
+**Result:**
+```yaml
+action_name: user_lookup_workflow
+steps:
+- action:
+    action_name: mw.get_user_by_email
+    output_key: user_info
+    input_args:
+      email: data.input_email
+```
 
-**Comprehensive Testing:**
+📖 **[Complete Quick Start Guide](docs/user/quick-start.md)**
+
+## 🎓 Learning & Tutorials
+
+### Interactive Tutorial System
+Learn through hands-on practice with overlay tutorials:
+
+1. **Access Tutorials**: `Tools` → `📚 Tutorials`
+2. **Start with Basics**: `🎯 Interactive Basic Workflow`
+3. **Follow Along**: Step-by-step guidance with copy-paste examples
+4. **Practice**: Complete all tutorial modules
+
+**Available Tutorials:**
+- **Basic Workflow** (12 min): Action steps, JSON handling, script writing
+- **Control Flow** (15 min): Switch statements, loops, conditional logic
+- **Advanced Features** (20 min): Parallel execution, error handling
+
+📖 **[Complete Tutorial Guide](docs/user/tutorials.md)**
+
+## 🧪 Testing & Validation
+
+### Run Tests
 ```bash
-# Test all enhanced features
-python test_enhanced_features.py
+# Run all tests
+python run_tests.py
 
-# Run comprehensive demo
-python demo_comprehensive_features.py
+# Run specific test categories
+python run_tests.py --unit          # Unit tests only
+python run_tests.py --integration   # Integration tests only
+python run_tests.py --ui            # UI tests only
+python run_tests.py --demo          # Demo scripts
 
-# Test core functionality
-python test_core.py
+# Run with coverage
+python run_tests.py --coverage --html
+
+# Quick tests (exclude slow tests)
+python run_tests.py --quick
+
+# Check test environment
+python run_tests.py --check
 ```
 
-**Legacy Testing:**
-```bash
-# Phase-specific tests
-python test_phase3.py  # Control flow
-python test_phase4.py  # Error handling
-python test_phase5.py  # Advanced validation
-```
+### Test Organization
+- **Unit Tests** (`tests/unit/`): Individual component testing
+- **Integration Tests** (`tests/integration/`): Component interaction testing
+- **UI Tests** (`tests/ui/`): User interface testing
+- **Demo Scripts** (`tests/demo/`): Feature demonstrations
+- **Validation Tests** (`tests/validation/`): Compliance and validation testing
 
-## 📁 Enhanced Application Structure
+### Validation Features
+- **Real-time Validation**: Immediate feedback as you build
+- **Compliance Checking**: Ensures Moveworks specification adherence
+- **Auto-fix Suggestions**: Actionable recommendations for issues
+- **Error Prevention**: Catches common mistakes before export
+
+## 📁 Project Structure
 
 ```
-enhanced_moveworks_yaml_assistant/
+moveworks-yaml-assistant/
 ├── 🏗️ Core Engine
-│   ├── core_structures.py          # Enhanced data models (all 8 expression types)
+│   ├── core_structures.py          # Data models for all 8 expression types
 │   ├── yaml_generator.py           # Compliant YAML generation
-│   └── validator.py               # Basic validation engine
+│   ├── validator.py                # Basic validation engine
+│   └── enhanced_validator.py       # Advanced validation with suggestions
 │
-├── 🎯 Enhanced Features
-│   ├── enhanced_validator.py       # Intelligent validation with fix suggestions
-│   ├── template_library.py         # Comprehensive template system
-│   ├── tutorial_system.py          # Interactive tutorials
-│   ├── enhanced_json_selector.py   # Advanced JSON path selection
+├── 🎯 Advanced Features
+│   ├── template_library.py         # Template system with import/export
+│   ├── enhanced_json_selector.py   # Visual JSON path selection
+│   ├── bender_function_builder.py  # Advanced data processing functions
+│   ├── compliance_validator.py     # Moveworks compliance checking
 │   └── contextual_examples.py      # Context-aware examples
 │
 ├── 🖥️ User Interface
-│   ├── main_gui.py                 # Enhanced PySide6 desktop application
+│   ├── main_gui.py                 # Main PySide6 desktop application
 │   ├── main_cli.py                 # Command-line interface
-│   └── run_app.py                  # Enhanced startup script
+│   ├── run_app.py                  # Application launcher
+│   └── error_display.py            # Enhanced error reporting
 │
-├── 🧪 Testing & Demo
-│   ├── test_enhanced_features.py   # Comprehensive test suite
-│   ├── demo_comprehensive_features.py # Feature demonstration
-│   ├── test_core.py                # Core functionality tests
-│   ├── test_phase3.py              # Control flow tests
-│   ├── test_phase4.py              # Error handling tests
-│   └── test_phase5.py              # Advanced validation tests
+├── 🎓 Tutorial System
+│   ├── tutorials/                  # Interactive tutorial framework
+│   │   ├── unified_tutorial_system.py
+│   │   ├── plugins/                # Tutorial plugins
+│   │   └── resources/              # Tutorial assets
+│   └── tutorial_data.py            # Tutorial content and data
 │
 ├── 📚 Documentation
-│   ├── yaml_syntex.md              # YAML syntax reference
+│   ├── docs/
+│   │   ├── user/                   # User documentation
+│   │   └── developer/              # Developer documentation
+│   ├── yaml_syntex.md              # Official YAML syntax reference
 │   ├── data_bank.md                # Data reference patterns
-│   ├── ENHANCED_IMPLEMENTATION_SUMMARY.md # Implementation summary
-│   ├── Project_Plan.md             # Original implementation plan
-│   └── README.md                   # This enhanced documentation
+│   └── ENVIRONMENT_SETUP.md        # Installation and setup guide
+│
+├── 🧪 Testing
+│   ├── tests/
+│   │   ├── unit/                   # Unit tests for individual components
+│   │   ├── integration/            # Integration tests for component interactions
+│   │   ├── ui/                     # User interface and GUI tests
+│   │   ├── demo/                   # Demo scripts and examples
+│   │   ├── validation/             # Validation and compliance tests
+│   │   └── fixtures/               # Test data and fixtures
+│   ├── run_tests.py                # Comprehensive test runner
+│   └── pytest.ini                 # Test configuration
 │
 └── 📦 Configuration
     ├── requirements.txt            # Python dependencies
-    └── .gitignore                 # Git ignore patterns
+    ├── requirements-dev.txt        # Development dependencies
+    └── templates/                  # Workflow templates
 ```
 
 ## 🔧 Enhanced Key Components
@@ -361,4 +420,51 @@ This implementation extends the original **PySide6 Desktop Application** archite
 - ✅ **User Experience**: Intuitive interface with Moveworks compliance guidance
 - ✅ **Documentation**: Complete documentation with compound action examples
 
-**The Enhanced Moveworks YAML Assistant is now the definitive solution for creating Moveworks-compliant Compound Action workflows!** 🚀
+## 📚 Documentation
+
+### User Documentation
+- **[Installation Guide](docs/user/installation.md)** - Complete setup instructions
+- **[Quick Start Guide](docs/user/quick-start.md)** - Get up and running in 5 minutes
+- **[Expression Types Guide](docs/user/expression-types.md)** - Complete reference for all 8 expression types
+- **[Interactive Tutorials](docs/user/tutorials.md)** - Step-by-step learning system
+- **[Data Handling Guide](docs/user/data-handling.md)** - Advanced data manipulation techniques
+- **[Template Library](docs/user/templates.md)** - Using and creating workflow templates
+- **[JSON Path Selector](docs/user/json-path-selector.md)** - Visual data navigation tool
+- **[Troubleshooting](docs/user/troubleshooting.md)** - Common issues and solutions
+
+### Developer Documentation
+- **[Architecture Overview](docs/developer/architecture.md)** - System design and components
+- **[API Reference](docs/developer/api-reference.md)** - Core application APIs
+- **[Contributing Guide](docs/developer/contributing.md)** - How to contribute to the project
+- **[Plugin Development](docs/developer/creating-plugins.md)** - Extending the system
+- **[Testing Guide](docs/developer/testing.md)** - Testing strategies and frameworks
+
+### Reference Documentation
+- **[YAML Syntax Reference](yaml_syntex.md)** - Official Moveworks YAML syntax
+- **[Data Bank Reference](data_bank.md)** - Available data sources and patterns
+- **[Environment Setup](ENVIRONMENT_SETUP.md)** - Detailed installation guide
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](docs/developer/contributing.md) for details on:
+- Development setup
+- Code style guidelines
+- Testing requirements
+- Pull request process
+
+## 📞 Support
+
+- **Documentation**: Check the comprehensive guides in `/docs/`
+- **Issues**: Report bugs and request features via the project repository
+- **Discussions**: Join community discussions for questions and ideas
+
+## 🏆 Project Status
+
+- ✅ **Complete Expression Support**: All 8 Moveworks expression types implemented
+- ✅ **Strict Compliance**: Full adherence to Moveworks specifications
+- ✅ **Production Ready**: Comprehensive testing and validation
+- ✅ **User Friendly**: Intuitive interface with guided learning
+- ✅ **Well Documented**: Extensive user and developer documentation
+- ✅ **Actively Maintained**: Regular updates and improvements
+
+**The Moveworks YAML Assistant is the definitive solution for creating Moveworks-compliant Compound Action workflows!** 🚀

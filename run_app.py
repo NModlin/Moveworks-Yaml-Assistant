@@ -267,7 +267,7 @@ def run_cli():
 def run_tests():
     """Run the core functionality tests."""
     try:
-        subprocess.run([sys.executable, "test_core.py"])
+        subprocess.run([sys.executable, "run_tests.py", "--unit"])
     except Exception as e:
         print(f"Error running tests: {e}")
         return False

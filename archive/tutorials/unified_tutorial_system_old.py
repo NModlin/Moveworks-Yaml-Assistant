@@ -20,31 +20,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve, QRect, QPoint
 from PySide6.QtGui import QPainter, QColor, QFont, QPen, QBrush, QClipboard
 
-# Import tutorial data for JSON examples
-try:
-    from tutorial_data import get_tutorial_json_data, get_tutorial_script_example
-except ImportError:
-    # Fallback if tutorial_data is not available
-    def get_tutorial_json_data(tutorial_id: str, step_type: str = "user"):
-        return {
-            "user": {
-                "id": "emp_12345",
-                "name": "John Doe",
-                "email": "john.doe@company.com",
-                "department": "Engineering",
-                "location": "San Francisco",
-                "manager": {
-                    "id": "mgr_67890",
-                    "name": "Jane Smith",
-                    "email": "jane.smith@company.com"
-                },
-                "permissions": ["read", "write", "admin"],
-                "active": True
-            }
-        }
-
-    def get_tutorial_script_example(tutorial_id: str):
-        return "# Sample script code\nuser_name = data.user_info.user.name\nreturn {'greeting': f'Hello, {user_name}!'}"
+from tutorial_data import get_tutorial_json_data, get_tutorial_script_example
 
 
 class TutorialCategory(Enum):
@@ -133,20 +109,17 @@ class UnifiedTutorialOverlay(QWidget):
 
         # Create separate floating panel for instructions (independent window)
         self.floating_panel = QWidget(None)  # No parent - truly independent
-        # Use Window flag to enable resizing while keeping it on top
-        self.floating_panel.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.floating_panel.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.floating_panel.setAttribute(Qt.WA_DeleteOnClose, False)
-        self.floating_panel.setWindowTitle("Tutorial Guide")
         
         self._setup_floating_panel()
         self._setup_animations()
 
     def _setup_floating_panel(self):
-        """Setup the resizable floating instruction panel."""
-        # Enhanced size requirements for resizable window
-        self.floating_panel.setMinimumSize(400, 300)  # Minimum for readability
-        self.floating_panel.setMaximumSize(1000, 1200)  # Larger maximum for flexibility
-        self.floating_panel.resize(500, 450)  # Slightly larger default size
+        """Setup the floating instruction panel."""
+        self.floating_panel.setMinimumSize(400, 300)
+        self.floating_panel.setMaximumSize(500, 600)
+        self.floating_panel.resize(450, 400)
         
         # Main layout
         layout = QVBoxLayout(self.floating_panel)
@@ -220,11 +193,10 @@ class UnifiedTutorialOverlay(QWidget):
         self.step_title.setWordWrap(True)
         content_layout.addWidget(self.step_title)
 
-        # Step description - resizable with preferred height
+        # Step description
         self.step_description = QTextEdit()
         self.step_description.setReadOnly(True)
-        self.step_description.setMinimumHeight(60)
-        self.step_description.setMaximumHeight(120)  # Allow some expansion
+        self.step_description.setMaximumHeight(80)
         self.step_description.setStyleSheet("""
             QTextEdit {
                 border: none;
@@ -236,11 +208,10 @@ class UnifiedTutorialOverlay(QWidget):
         """)
         content_layout.addWidget(self.step_description)
 
-        # Instruction text - resizable with preferred height
+        # Instruction text
         self.instruction_text = QTextEdit()
         self.instruction_text.setReadOnly(True)
-        self.instruction_text.setMinimumHeight(80)
-        self.instruction_text.setMaximumHeight(200)  # Allow more expansion for longer instructions
+        self.instruction_text.setMaximumHeight(100)
         self.instruction_text.setStyleSheet("""
             QTextEdit {
                 border: 1px solid #e9ecef;
@@ -272,8 +243,7 @@ class UnifiedTutorialOverlay(QWidget):
 
         self.copy_paste_text = QTextEdit()
         self.copy_paste_text.setReadOnly(True)
-        self.copy_paste_text.setMinimumHeight(60)
-        self.copy_paste_text.setMaximumHeight(150)  # Allow expansion for longer code examples
+        self.copy_paste_text.setMaximumHeight(80)
         self.copy_paste_text.setStyleSheet("""
             QTextEdit {
                 border: 1px solid #28a745;
@@ -499,36 +469,30 @@ class UnifiedTutorialOverlay(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        """Paint the overlay with non-blocking highlighting - green border only."""
+        """Paint the overlay with highlighting."""
         if not self.target_rect.isValid():
             return
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        # NO DARK OVERLAY - Only draw highlight border around target area
-        # This ensures the UI remains fully interactive and visible
+        # Semi-transparent overlay
+        overlay_color = QColor(0, 0, 0, 100)
+        painter.fillRect(self.rect(), overlay_color)
 
-        # Draw multiple layers for a very prominent green highlight
-        for i in range(4):
-            glow_color = QColor("#28a745")  # Green color for highlighting
-            glow_color.setAlpha(max(30, 80 - i * 15))  # Fade out for outer layers
-            pen_glow = QPen(glow_color, 6 + i * 2)
-            painter.setPen(pen_glow)
-            painter.setBrush(QBrush(Qt.NoBrush))
+        # Clear the target area (make it visible)
+        painter.setCompositionMode(QPainter.CompositionMode_Clear)
+        painter.fillRect(self.target_rect, QColor(0, 0, 0, 0))
 
-            # Expand rect for each glow layer
-            glow_rect = self.target_rect.adjusted(-i*3, -i*3, i*3, i*3)
-            painter.drawRoundedRect(glow_rect, 8, 8)
+        # Draw highlight border
+        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        highlight_color = QColor(self.current_step.highlight_color if self.current_step else "#3498db")
+        highlight_color.setAlpha(200)
 
-        # Draw main highlight border
-        highlight_color = QColor("#28a745")  # Bright green
-        highlight_color.setAlpha(255)
-
-        pen = QPen(highlight_color, 4)
+        pen = QPen(highlight_color, 3)
         painter.setPen(pen)
-        painter.setBrush(QBrush(Qt.NoBrush))
-        painter.drawRoundedRect(self.target_rect, 8, 8)
+        painter.setBrush(QBrush())
+        painter.drawRect(self.target_rect)
 
     def _copy_to_clipboard(self):
         """Copy the example text to clipboard."""
