@@ -18,6 +18,54 @@ class DataPathNotFound(Exception):
 
 
 @dataclass
+class InputVariable:
+    """
+    Represents an input variable for a Moveworks Compound Action workflow.
+
+    Attributes:
+        name: Variable name (must be lowercase_snake_case)
+        data_type: Data type (string, number, boolean, array, object, etc.)
+        description: Optional description of the variable
+        required: Whether the variable is required (default: True)
+        default_value: Optional default value for the variable
+    """
+    name: str
+    data_type: str = "string"
+    description: Optional[str] = None
+    required: bool = True
+    default_value: Optional[Any] = None
+
+    def __post_init__(self):
+        """Validate the input variable after initialization."""
+        # Validate name format (lowercase_snake_case)
+        import re
+        if not re.match(r'^[a-z][a-z0-9_]*$', self.name):
+            raise ValueError(f"Input variable name '{self.name}' must be lowercase_snake_case")
+
+        # Validate data type
+        valid_types = {
+            'string', 'number', 'boolean', 'array', 'object',
+            'List[string]', 'List[number]', 'List[boolean]', 'List[object]',
+            'integer', 'List[integer]', 'User', 'List[User]'
+        }
+        if self.data_type not in valid_types:
+            raise ValueError(f"Invalid data type '{self.data_type}'. Must be one of: {', '.join(sorted(valid_types))}")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for YAML generation."""
+        result = {
+            'type': self.data_type
+        }
+        if self.description:
+            result['description'] = self.description
+        if not self.required:
+            result['required'] = False
+        if self.default_value is not None:
+            result['default'] = self.default_value
+        return result
+
+
+@dataclass
 class ActionStep:
     """
     Represents an action step in a Moveworks Compound Action workflow.
@@ -270,8 +318,36 @@ class Workflow:
 
     Attributes:
         steps: List of steps (ActionStep, ScriptStep, or control flow step types)
+        input_variables: List of input variables for the workflow
     """
     steps: List[Union[ActionStep, ScriptStep, SwitchStep, ForLoopStep, ParallelStep, ReturnStep, RaiseStep, TryCatchStep]] = field(default_factory=list)
+    input_variables: List[InputVariable] = field(default_factory=list)
+
+    def get_input_variable_names(self) -> List[str]:
+        """Get list of input variable names for validation and auto-completion."""
+        return [var.name for var in self.input_variables]
+
+    def get_input_variable_by_name(self, name: str) -> Optional[InputVariable]:
+        """Get input variable by name."""
+        for var in self.input_variables:
+            if var.name == name:
+                return var
+        return None
+
+    def add_input_variable(self, variable: InputVariable) -> bool:
+        """Add input variable if name is unique."""
+        if variable.name in self.get_input_variable_names():
+            return False
+        self.input_variables.append(variable)
+        return True
+
+    def remove_input_variable(self, name: str) -> bool:
+        """Remove input variable by name."""
+        for i, var in enumerate(self.input_variables):
+            if var.name == name:
+                del self.input_variables[i]
+                return True
+        return False
 
 
 class DataContext:
