@@ -166,25 +166,6 @@ class EnhancedValidator:
                     "Available user attributes: first_name, last_name, email_addr, department",
                     "Example: meta_info.user.first_name for the user's first name"
                 ]
-            },
-            "undefined_input_variable": {
-                "suggestions": [
-                    "Define the input variable in the Input Variables section",
-                    "Check the variable name for typos (must be lowercase_snake_case)",
-                    "Ensure the variable is defined before referencing it in steps"
-                ],
-                "quick_fix": {
-                    "type": "add_input_variable",
-                    "variable_name": "",
-                    "data_type": "string"
-                }
-            },
-            "invalid_input_variable_reference": {
-                "suggestions": [
-                    "Use 'data.{variable_name}' format to reference input variables",
-                    "Check that the variable name matches exactly (case-sensitive)",
-                    "Verify the variable is defined in the Input Variables section"
-                ]
             }
         }
 
@@ -202,7 +183,6 @@ class EnhancedValidator:
 
         # Add additional checks with suggestions
         enhanced_errors.extend(self._check_best_practices(workflow))
-        enhanced_errors.extend(self._check_input_variable_references(workflow))
 
         return enhanced_errors
 
@@ -405,75 +385,6 @@ class EnhancedValidator:
                     ))
 
         return warnings
-
-    def _check_input_variable_references(self, workflow: Workflow) -> List[ValidationError]:
-        """Check for undefined input variable references."""
-        errors = []
-
-        # Get defined input variable names
-        defined_variables = set()
-        if hasattr(workflow, 'input_variables') and workflow.input_variables:
-            defined_variables = {var.name for var in workflow.input_variables}
-
-        # Check each step for input variable references
-        for i, step in enumerate(workflow.steps):
-            step_num = i + 1
-
-            # Check input_args for data.{variable_name} references
-            if hasattr(step, 'input_args') and step.input_args:
-                for key, value in step.input_args.items():
-                    if isinstance(value, str) and value.startswith('data.'):
-                        # Extract variable name from data.{variable_name}
-                        parts = value.split('.')
-                        if len(parts) >= 2:
-                            var_name = parts[1]
-                            # Check if this looks like an input variable reference
-                            # (no further dots, suggesting it's not a step output reference)
-                            if len(parts) == 2 and var_name not in defined_variables:
-                                # Check if it might be a step output reference
-                                is_step_output = any(
-                                    hasattr(s, 'output_key') and s.output_key == var_name
-                                    for j, s in enumerate(workflow.steps) if j < i
-                                )
-
-                                if not is_step_output:
-                                    errors.append(ValidationError(
-                                        message=f"Step {step_num}: References undefined input variable '{var_name}' in {key}",
-                                        step_number=step_num,
-                                        severity="error",
-                                        fix_suggestions=[
-                                            f"Define input variable '{var_name}' in the Input Variables section",
-                                            f"Check if '{var_name}' is a typo of an existing variable",
-                                            f"Use the correct format: data.{var_name}"
-                                        ]
-                                    ))
-
-            # Check script code for input variable references
-            if isinstance(step, ScriptStep) and step.code:
-                import re
-                # Find data.{variable_name} patterns in script code
-                data_refs = re.findall(r'data\.([a-zA-Z_][a-zA-Z0-9_]*)', step.code)
-                for var_name in data_refs:
-                    if var_name not in defined_variables:
-                        # Check if it's a step output reference
-                        is_step_output = any(
-                            hasattr(s, 'output_key') and s.output_key == var_name
-                            for j, s in enumerate(workflow.steps) if j < i
-                        )
-
-                        if not is_step_output:
-                            errors.append(ValidationError(
-                                message=f"Step {step_num}: Script references undefined input variable '{var_name}'",
-                                step_number=step_num,
-                                severity="error",
-                                fix_suggestions=[
-                                    f"Define input variable '{var_name}' in the Input Variables section",
-                                    f"Check if '{var_name}' is a typo of an existing variable",
-                                    "Verify the variable name follows lowercase_snake_case convention"
-                                ]
-                            ))
-
-        return errors
 
     def apply_quick_fix(self, workflow: Workflow, error: ValidationError) -> bool:
         """Apply a quick fix to the workflow."""

@@ -42,8 +42,6 @@ from error_display import APIthonValidationWidget, EnhancedAPIthonValidationWidg
 from compliance_validator import compliance_validator, ComplianceValidationResult
 from dsl_input_widget import DSLInputWidget
 from dsl_validator import dsl_validator
-from enhanced_input_args_table import EnhancedInputArgsTable
-from input_variables_widget import InputVariablesWidget
 
 
 class WorkflowListWidget(QListWidget):
@@ -215,7 +213,6 @@ class StepConfigurationPanel(QStackedWidget):
         super().__init__()
         self.current_step = None
         self.current_step_index = -1
-        self.workflow = None  # Add workflow reference
 
         # Create different configuration widgets
         self.empty_widget = QLabel("Select a step to configure")
@@ -317,8 +314,7 @@ class StepConfigurationPanel(QStackedWidget):
         input_args_group = QGroupBox("Input Arguments")
         input_args_layout = QVBoxLayout(input_args_group)
 
-        # Enhanced input arguments table with auto-suggestion
-        self.action_input_args_table = EnhancedInputArgsTable(step_type="action")
+        self.action_input_args_table = QTableWidget(0, 2)
         self.action_input_args_table.setHorizontalHeaderLabels(["Key", "Value"])
         self.action_input_args_table.horizontalHeader().setStretchLastSection(True)
         self.action_input_args_table.itemChanged.connect(self._on_action_data_changed)
@@ -329,21 +325,11 @@ class StepConfigurationPanel(QStackedWidget):
         self.action_input_args_table.setMaximumHeight(300)
         input_args_layout.addWidget(self.action_input_args_table)
 
-        # Enhanced buttons for input args
+        # Buttons for input args
         input_args_buttons = QHBoxLayout()
         self.add_input_arg_btn = QPushButton("Add Argument")  # Store as attribute for tutorial
         self.add_input_arg_btn.setObjectName("add_input_arg_btn")  # For tutorial targeting
         self.add_input_arg_btn.clicked.connect(self._add_action_input_arg)
-
-        # Auto-suggest button
-        auto_suggest_btn = QPushButton("Auto-Suggest from Action")
-        auto_suggest_btn.clicked.connect(self._auto_suggest_action_args)
-        auto_suggest_btn.setToolTip("Auto-populate required arguments based on selected action")
-
-        # JSON input button
-        json_suggest_btn = QPushButton("Suggest from JSON")
-        json_suggest_btn.clicked.connect(self._suggest_args_from_json)
-        json_suggest_btn.setToolTip("Analyze JSON to suggest input arguments")
 
         # Apply high contrast styling for readability
         self.add_input_arg_btn.setStyleSheet("""
@@ -367,55 +353,26 @@ class StepConfigurationPanel(QStackedWidget):
         remove_arg_btn = QPushButton("Remove Selected")
         remove_arg_btn.clicked.connect(self._remove_action_input_arg)
 
-        # Apply consistent styling to all buttons
-        button_style = """
+        # Apply consistent styling to remove button
+        remove_arg_btn.setStyleSheet("""
             QPushButton {
+                background-color: #f44336;
+                color: #ffffff;
                 border: none;
                 border-radius: 4px;
                 padding: 6px 12px;
                 font-size: 12px;
                 font-weight: bold;
-                margin: 2px;
-            }
-            QPushButton:hover {
-                opacity: 0.8;
-            }
-        """
-
-        # Apply specific colors
-        auto_suggest_btn.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #2196f3;
-                color: #ffffff;
-            }
-            QPushButton:hover {
-                background-color: #1976d2;
-            }
-        """)
-
-        json_suggest_btn.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #ff9800;
-                color: #ffffff;
-            }
-            QPushButton:hover {
-                background-color: #f57c00;
-            }
-        """)
-
-        remove_arg_btn.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #f44336;
-                color: #ffffff;
             }
             QPushButton:hover {
                 background-color: #d32f2f;
             }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
         """)
 
         input_args_buttons.addWidget(self.add_input_arg_btn)
-        input_args_buttons.addWidget(auto_suggest_btn)
-        input_args_buttons.addWidget(json_suggest_btn)
         input_args_buttons.addWidget(remove_arg_btn)
         input_args_buttons.addStretch()
         input_args_layout.addLayout(input_args_buttons)
@@ -540,8 +497,7 @@ class StepConfigurationPanel(QStackedWidget):
         input_args_group = QGroupBox("Input Arguments")
         input_args_layout = QVBoxLayout(input_args_group)
 
-        # Enhanced input arguments table with auto-suggestion
-        self.script_input_args_table = EnhancedInputArgsTable(step_type="script")
+        self.script_input_args_table = QTableWidget(0, 2)
         self.script_input_args_table.setHorizontalHeaderLabels(["Key", "Value"])
         self.script_input_args_table.horizontalHeader().setStretchLastSection(True)
         self.script_input_args_table.itemChanged.connect(self._on_script_data_changed)
@@ -551,56 +507,13 @@ class StepConfigurationPanel(QStackedWidget):
         self.script_input_args_table.setMaximumHeight(300)
         input_args_layout.addWidget(self.script_input_args_table)
 
-        # Enhanced buttons for input args
+        # Buttons for input args
         input_args_buttons = QHBoxLayout()
         add_arg_btn = QPushButton("Add Argument")
         add_arg_btn.clicked.connect(self._add_script_input_arg)
-
-        # JSON input button for scripts
-        json_suggest_btn = QPushButton("Suggest from JSON")
-        json_suggest_btn.clicked.connect(self._suggest_script_args_from_json)
-        json_suggest_btn.setToolTip("Analyze JSON to suggest input arguments")
-
         remove_arg_btn = QPushButton("Remove Selected")
         remove_arg_btn.clicked.connect(self._remove_script_input_arg)
-
-        # Apply consistent styling to all buttons
-        button_style = """
-            QPushButton {
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-size: 12px;
-                font-weight: bold;
-                margin: 2px;
-            }
-            QPushButton:hover {
-                opacity: 0.8;
-            }
-        """
-
-        json_suggest_btn.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #ff9800;
-                color: #ffffff;
-            }
-            QPushButton:hover {
-                background-color: #f57c00;
-            }
-        """)
-
-        remove_arg_btn.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #f44336;
-                color: #ffffff;
-            }
-            QPushButton:hover {
-                background-color: #d32f2f;
-            }
-        """)
-
         input_args_buttons.addWidget(add_arg_btn)
-        input_args_buttons.addWidget(json_suggest_btn)
         input_args_buttons.addWidget(remove_arg_btn)
         input_args_buttons.addStretch()
         input_args_layout.addLayout(input_args_buttons)
@@ -1345,12 +1258,10 @@ class StepConfigurationPanel(QStackedWidget):
 
         return widget
 
-    def set_step(self, step, step_index: int, workflow: Workflow = None):
+    def set_step(self, step, step_index: int):
         """Set the current step to configure."""
         self.current_step = step
         self.current_step_index = step_index
-        if workflow:
-            self.workflow = workflow
 
         if isinstance(step, ActionStep):
             self._populate_action_config(step)
@@ -1385,19 +1296,11 @@ class StepConfigurationPanel(QStackedWidget):
         self.action_description_edit.setText(step.description or "")
         self.action_output_key_edit.setText(step.output_key or "")
 
-        # Populate input args table using enhanced method or fallback
-        if hasattr(self.action_input_args_table, 'populate_from_step'):
-            self.action_input_args_table.populate_from_step(step)
-            # Set context for enhanced features
-            if hasattr(self.action_input_args_table, 'set_context') and hasattr(self, 'workflow'):
-                step_index = self.current_step_index if self.current_step_index >= 0 else -1
-                self.action_input_args_table.set_context(self.workflow, step, step_index)
-        else:
-            # Fallback for regular QTableWidget
-            self.action_input_args_table.setRowCount(len(step.input_args))
-            for i, (key, value) in enumerate(step.input_args.items()):
-                self.action_input_args_table.setItem(i, 0, QTableWidgetItem(str(key)))
-                self.action_input_args_table.setItem(i, 1, QTableWidgetItem(str(value)))
+        # Populate input args table
+        self.action_input_args_table.setRowCount(len(step.input_args))
+        for i, (key, value) in enumerate(step.input_args.items()):
+            self.action_input_args_table.setItem(i, 0, QTableWidgetItem(str(key)))
+            self.action_input_args_table.setItem(i, 1, QTableWidgetItem(str(value)))
 
         # Populate JSON output
         self.action_json_edit.setPlainText(step.user_provided_json_output or "")
@@ -1411,19 +1314,11 @@ class StepConfigurationPanel(QStackedWidget):
         available_data_paths = self._get_available_data_paths_for_step()
         self.enhanced_script_editor.set_script_step(step, available_data_paths)
 
-        # Populate input args table using enhanced method or fallback
-        if hasattr(self.script_input_args_table, 'populate_from_step'):
-            self.script_input_args_table.populate_from_step(step)
-            # Set context for enhanced features
-            if hasattr(self.script_input_args_table, 'set_context') and hasattr(self, 'workflow'):
-                step_index = self.current_step_index if self.current_step_index >= 0 else -1
-                self.script_input_args_table.set_context(self.workflow, step, step_index)
-        else:
-            # Fallback for regular QTableWidget
-            self.script_input_args_table.setRowCount(len(step.input_args))
-            for i, (key, value) in enumerate(step.input_args.items()):
-                self.script_input_args_table.setItem(i, 0, QTableWidgetItem(str(key)))
-                self.script_input_args_table.setItem(i, 1, QTableWidgetItem(str(value)))
+        # Populate input args table
+        self.script_input_args_table.setRowCount(len(step.input_args))
+        for i, (key, value) in enumerate(step.input_args.items()):
+            self.script_input_args_table.setItem(i, 0, QTableWidgetItem(str(key)))
+            self.script_input_args_table.setItem(i, 1, QTableWidgetItem(str(value)))
 
         # Populate JSON output
         self.script_json_edit.setPlainText(step.user_provided_json_output or "")
@@ -1461,17 +1356,13 @@ class StepConfigurationPanel(QStackedWidget):
         self.current_step.description = self.action_description_edit.text() or None
         self.current_step.output_key = self.action_output_key_edit.text()
 
-        # Update input args from enhanced table or fallback to regular table
-        if hasattr(self.action_input_args_table, 'get_input_args_dict'):
-            self.current_step.input_args = self.action_input_args_table.get_input_args_dict()
-        else:
-            # Fallback for regular QTableWidget
-            self.current_step.input_args = {}
-            for row in range(self.action_input_args_table.rowCount()):
-                key_item = self.action_input_args_table.item(row, 0)
-                value_item = self.action_input_args_table.item(row, 1)
-                if key_item and value_item and key_item.text():
-                    self.current_step.input_args[key_item.text()] = value_item.text()
+        # Update input args from table
+        self.current_step.input_args = {}
+        for row in range(self.action_input_args_table.rowCount()):
+            key_item = self.action_input_args_table.item(row, 0)
+            value_item = self.action_input_args_table.item(row, 1)
+            if key_item and value_item and key_item.text():
+                self.current_step.input_args[key_item.text()] = value_item.text()
 
         self.step_updated.emit()
 
@@ -1484,17 +1375,13 @@ class StepConfigurationPanel(QStackedWidget):
         self.current_step.output_key = self.script_output_key_edit.text()
         # Note: script code is now handled by the enhanced editor
 
-        # Update input args from enhanced table or fallback to regular table
-        if hasattr(self.script_input_args_table, 'get_input_args_dict'):
-            self.current_step.input_args = self.script_input_args_table.get_input_args_dict()
-        else:
-            # Fallback for regular QTableWidget
-            self.current_step.input_args = {}
-            for row in range(self.script_input_args_table.rowCount()):
-                key_item = self.script_input_args_table.item(row, 0)
-                value_item = self.script_input_args_table.item(row, 1)
-                if key_item and value_item and key_item.text():
-                    self.current_step.input_args[key_item.text()] = value_item.text()
+        # Update input args from table
+        self.current_step.input_args = {}
+        for row in range(self.script_input_args_table.rowCount()):
+            key_item = self.script_input_args_table.item(row, 0)
+            value_item = self.script_input_args_table.item(row, 1)
+            if key_item and value_item and key_item.text():
+                self.current_step.input_args[key_item.text()] = value_item.text()
 
         self.step_updated.emit()
 
@@ -2178,92 +2065,31 @@ class StepConfigurationPanel(QStackedWidget):
 
     def _add_action_input_arg(self):
         """Add a new row to the action input args table."""
-        if hasattr(self.action_input_args_table, 'add_argument_row'):
-            self.action_input_args_table.add_argument_row()
-        else:
-            # Fallback for regular QTableWidget
-            row_count = self.action_input_args_table.rowCount()
-            self.action_input_args_table.insertRow(row_count)
-            self.action_input_args_table.setItem(row_count, 0, QTableWidgetItem(""))
-            self.action_input_args_table.setItem(row_count, 1, QTableWidgetItem(""))
+        row_count = self.action_input_args_table.rowCount()
+        self.action_input_args_table.insertRow(row_count)
+        self.action_input_args_table.setItem(row_count, 0, QTableWidgetItem(""))
+        self.action_input_args_table.setItem(row_count, 1, QTableWidgetItem(""))
 
     def _remove_action_input_arg(self):
         """Remove the selected row from the action input args table."""
-        if hasattr(self.action_input_args_table, 'remove_selected_row'):
-            self.action_input_args_table.remove_selected_row()
-        else:
-            # Fallback for regular QTableWidget
-            current_row = self.action_input_args_table.currentRow()
-            if current_row >= 0:
-                self.action_input_args_table.removeRow(current_row)
-        self._on_action_data_changed()
-
-    def _auto_suggest_action_args(self):
-        """Auto-suggest input arguments based on the selected action."""
-        if not isinstance(self.current_step, ActionStep):
-            return
-
-        action_name = self.action_name_edit.text().strip()
-        if not action_name:
-            QMessageBox.information(
-                self,
-                "No Action Selected",
-                "Please enter an action name first to get argument suggestions."
-            )
-            return
-
-        if hasattr(self.action_input_args_table, 'auto_populate_from_action'):
-            self.action_input_args_table.auto_populate_from_action(action_name)
-        else:
-            QMessageBox.information(
-                self,
-                "Feature Not Available",
-                "Auto-suggestion feature is not available for this table."
-            )
-
-    def _suggest_args_from_json(self):
-        """Show JSON input dialog for argument suggestions."""
-        if hasattr(self.action_input_args_table, 'show_json_input_dialog'):
-            self.action_input_args_table.show_json_input_dialog()
-        else:
-            QMessageBox.information(
-                self,
-                "Feature Not Available",
-                "JSON suggestion feature is not available for this table."
-            )
+        current_row = self.action_input_args_table.currentRow()
+        if current_row >= 0:
+            self.action_input_args_table.removeRow(current_row)
+            self._on_action_data_changed()
 
     def _add_script_input_arg(self):
         """Add a new row to the script input args table."""
-        if hasattr(self.script_input_args_table, 'add_argument_row'):
-            self.script_input_args_table.add_argument_row()
-        else:
-            # Fallback for regular QTableWidget
-            row_count = self.script_input_args_table.rowCount()
-            self.script_input_args_table.insertRow(row_count)
-            self.script_input_args_table.setItem(row_count, 0, QTableWidgetItem(""))
-            self.script_input_args_table.setItem(row_count, 1, QTableWidgetItem(""))
+        row_count = self.script_input_args_table.rowCount()
+        self.script_input_args_table.insertRow(row_count)
+        self.script_input_args_table.setItem(row_count, 0, QTableWidgetItem(""))
+        self.script_input_args_table.setItem(row_count, 1, QTableWidgetItem(""))
 
     def _remove_script_input_arg(self):
         """Remove the selected row from the script input args table."""
-        if hasattr(self.script_input_args_table, 'remove_selected_row'):
-            self.script_input_args_table.remove_selected_row()
-        else:
-            # Fallback for regular QTableWidget
-            current_row = self.script_input_args_table.currentRow()
-            if current_row >= 0:
-                self.script_input_args_table.removeRow(current_row)
-        self._on_script_data_changed()
-
-    def _suggest_script_args_from_json(self):
-        """Show JSON input dialog for script argument suggestions."""
-        if hasattr(self.script_input_args_table, 'show_json_input_dialog'):
-            self.script_input_args_table.show_json_input_dialog()
-        else:
-            QMessageBox.information(
-                self,
-                "Feature Not Available",
-                "JSON suggestion feature is not available for this table."
-            )
+        current_row = self.script_input_args_table.currentRow()
+        if current_row >= 0:
+            self.script_input_args_table.removeRow(current_row)
+            self._on_script_data_changed()
 
     def _parse_action_json(self):
         """Parse and save the action's JSON output."""
@@ -3411,11 +3237,6 @@ class MainWindow(QMainWindow):
         action_name_layout.addWidget(self.action_name_edit)
         layout.addWidget(action_name_group)
 
-        # Input Variables section
-        self.input_variables_widget = InputVariablesWidget()
-        self.input_variables_widget.variables_changed.connect(self._on_input_variables_changed)
-        layout.addWidget(self.input_variables_widget)
-
         # Step list
         self.workflow_list = WorkflowListWidget()
         self.workflow_list.setStyleSheet("""
@@ -4251,7 +4072,7 @@ class MainWindow(QMainWindow):
         """Handle step selection from the workflow list with enhanced JSON selector integration."""
         if 0 <= step_index < len(self.workflow_list.workflow.steps):
             step = self.workflow_list.workflow.steps[step_index]
-            self.config_panel.set_step(step, step_index, self.workflow_list.workflow)
+            self.config_panel.set_step(step, step_index)
 
             # Enhanced JSON panel integration with better step handling
             self.enhanced_json_panel.set_workflow(self.workflow_list.workflow, step_index)
@@ -4316,23 +4137,10 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'yaml_panel'):
             self.yaml_panel.refresh_yaml()
 
-    def _on_input_variables_changed(self):
-        """Handle input variables changes."""
-        # Update all panels when input variables change
-        self._update_all_panels()
-
-        # Update validation to check for input variable references
-        self._update_validation()
-
-        # Refresh YAML to include input_variables section
-        if hasattr(self, 'yaml_panel'):
-            self.yaml_panel.refresh_yaml()
-
     def _update_all_panels(self):
         """Update all panels with the current workflow."""
         self.enhanced_json_panel.set_workflow(self.workflow_list.workflow)
         self.yaml_panel.set_workflow(self.workflow_list.workflow)
-        self.input_variables_widget.set_workflow(self.workflow_list.workflow)
         self._update_validation()
         self._update_compliance_validation()
 
@@ -4556,7 +4364,7 @@ class MainWindow(QMainWindow):
                 step.code = example_code
 
             # Refresh displays
-            self.config_panel.set_step(step, current_row, self.workflow_list.workflow)
+            self.config_panel.set_step(step, current_row)
             self._on_step_updated()
 
     def _on_bender_function_built(self, expression: str):

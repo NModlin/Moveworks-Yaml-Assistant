@@ -193,19 +193,11 @@ class SmartPathCompleter(QCompleter):
         logger.debug("SmartPathCompleter initialized")
 
     def update_completions(self):
-        """Update available completions from current JSON data and input variables."""
+        """Update available completions from current JSON data."""
         if not self.json_selector or not hasattr(self.json_selector, 'json_tree'):
             return
 
         paths = list(self.json_selector.json_tree.path_map.values())
-
-        # Add input variables if available
-        if hasattr(self.json_selector, 'workflow') and self.json_selector.workflow:
-            if hasattr(self.json_selector.workflow, 'input_variables'):
-                for var in self.json_selector.workflow.input_variables:
-                    input_var_path = f"data.{var.name}"
-                    paths.append(input_var_path)
-                    logger.debug(f"Added input variable path: {input_var_path}")
 
         # Add common meta_info paths
         meta_paths = [

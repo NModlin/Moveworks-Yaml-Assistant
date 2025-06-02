@@ -398,7 +398,6 @@ def workflow_to_yaml_dict(workflow: Workflow, action_name: str = None) -> Dict[s
 
     Following Moveworks Compound Action format requirements:
     - Mandatory top-level fields: action_name (string) and steps (list)
-    - Optional input_variables section for workflow inputs
     - Single expression: wrapped in steps list for consistency
     - Multiple expressions: wrapped in steps list
     - Proper data type enforcement for all fields
@@ -419,18 +418,9 @@ def workflow_to_yaml_dict(workflow: Workflow, action_name: str = None) -> Dict[s
 
     # Create the compound action structure with mandatory fields
     compound_action = {
-        "action_name": action_name or "compound_action"
+        "action_name": action_name or "compound_action",
+        "steps": steps_list
     }
-
-    # Add input_variables section if variables are defined
-    if workflow.input_variables:
-        input_vars_dict = {}
-        for var in workflow.input_variables:
-            input_vars_dict[var.name] = var.to_dict()
-        compound_action['input_variables'] = input_vars_dict
-
-    # Add steps (mandatory)
-    compound_action["steps"] = steps_list
 
     return compound_action
 
