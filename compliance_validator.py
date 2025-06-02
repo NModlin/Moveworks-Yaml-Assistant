@@ -30,67 +30,15 @@ class ComplianceValidator:
     """Enhanced compliance validator for Moveworks YAML Assistant."""
     
     def __init__(self):
-        # Enhanced mandatory fields based on official Moveworks specifications
         self.mandatory_fields = {
             'ActionStep': ['action_name', 'output_key'],
             'ScriptStep': ['code', 'output_key'],
-            'SwitchStep': ['cases'],  # cases must be non-empty list
-            'ForLoopStep': ['each', 'in_source', 'output_key', 'steps'],  # steps required for execution
-            'ParallelStep': [],  # Varies by mode - validated separately
-            'ReturnStep': [],  # output_mapper is optional but if present must be dict
+            'SwitchStep': ['cases'],
+            'ForLoopStep': ['each', 'in_source', 'output_key'],
+            'ParallelStep': [],  # Varies by mode - output_key required when containing for loops
+            'ReturnStep': [],  # output_mapper is optional
             'RaiseStep': ['output_key'],  # output_key is always required for error tracking
-            'TryCatchStep': ['try_steps']  # try_steps must be non-empty list
-        }
-
-        # Enhanced type requirements for strict compliance
-        self.field_types = {
-            'ActionStep': {
-                'action_name': str,
-                'output_key': str,
-                'input_args': dict,
-                'delay_config': dict,
-                'progress_updates': dict,
-                'description': str
-            },
-            'ScriptStep': {
-                'code': str,
-                'output_key': str,
-                'input_args': dict,
-                'description': str
-            },
-            'SwitchStep': {
-                'cases': list,
-                'default_case': object,  # DefaultCase object
-                'output_key': str
-            },
-            'ForLoopStep': {
-                'each': str,
-                'index': str,
-                'in_source': str,
-                'output_key': str,
-                'steps': list,
-                'description': str
-            },
-            'ParallelStep': {
-                'branches': list,
-                'for_loop': object,  # ParallelForLoop object
-                'output_key': str,
-                'description': str
-            },
-            'ReturnStep': {
-                'output_mapper': dict,
-                'description': str
-            },
-            'RaiseStep': {
-                'output_key': str,
-                'message': str,
-                'description': str
-            },
-            'TryCatchStep': {
-                'try_steps': list,
-                'catch_block': object,  # CatchBlock object
-                'description': str
-            }
+            'TryCatchStep': ['try_steps']
         }
 
         # Enhanced output_key requirements based on context
@@ -180,209 +128,62 @@ class ComplianceValidator:
             self._validate_apiton_compliance(step, step_num, result)
     
     def _validate_mandatory_fields(self, step: Any, step_type: str, step_num: int, result: ComplianceValidationResult):
-        """
-        Validate that all mandatory fields are present, non-empty, and have correct types.
-        Enhanced for strict Moveworks compliance.
-        """
+        """Validate that all mandatory fields are present and non-empty."""
         mandatory_fields = self.mandatory_fields.get(step_type, [])
-        field_types = self.field_types.get(step_type, {})
 
         # Enhanced output_key validation based on context
         self._validate_output_key_requirements(step, step_type, step_num, result)
 
         # Enhanced action_name validation based on context
         self._validate_action_name_requirements(step, step_type, step_num, result)
-
-        # Validate mandatory fields presence and content
+        
         for field_name in mandatory_fields:
             if not hasattr(step, field_name):
                 result.mandatory_field_errors.append(
-                    f"Step {step_num} ({step_type}): Missing mandatory field '{field_name}' - "
-                    f"Required by Moveworks specification"
+                    f"Step {step_num} ({step_type}): Missing mandatory field '{field_name}'"
                 )
             else:
                 field_value = getattr(step, field_name)
-
-                # Check for None or empty values
-                if field_value is None:
+                if field_value is None or (isinstance(field_value, str) and not field_value.strip()):
                     result.mandatory_field_errors.append(
-                        f"Step {step_num} ({step_type}): Mandatory field '{field_name}' cannot be None"
-                    )
-                elif isinstance(field_value, str) and not field_value.strip():
-                    result.mandatory_field_errors.append(
-                        f"Step {step_num} ({step_type}): Mandatory field '{field_name}' cannot be empty string"
+                        f"Step {step_num} ({step_type}): Mandatory field '{field_name}' cannot be empty"
                     )
                 elif isinstance(field_value, list) and len(field_value) == 0:
                     result.mandatory_field_errors.append(
-                        f"Step {step_num} ({step_type}): Mandatory field '{field_name}' cannot be empty list"
+                        f"Step {step_num} ({step_type}): Mandatory field '{field_name}' cannot be an empty list"
                     )
-                elif isinstance(field_value, dict) and len(field_value) == 0:
-                    result.mandatory_field_errors.append(
-                        f"Step {step_num} ({step_type}): Mandatory field '{field_name}' cannot be empty dict"
-                    )
-
-                # Validate type if specified
-                expected_type = field_types.get(field_name)
-                if expected_type and expected_type != object:
-                    if not isinstance(field_value, expected_type):
-                        result.mandatory_field_errors.append(
-                            f"Step {step_num} ({step_type}): Field '{field_name}' must be of type "
-                            f"{expected_type.__name__}, got {type(field_value).__name__}"
-                        )
-
-        # Validate all field types (including optional fields)
-        self._validate_field_types(step, step_type, step_num, result)
-
+        
         # Special validation for specific step types
-        self._validate_step_specific_requirements(step, step_type, step_num, result)
-
-    def _validate_field_types(self, step: Any, step_type: str, step_num: int, result: ComplianceValidationResult):
-        """Validate field types for all fields (mandatory and optional)."""
-        field_types = self.field_types.get(step_type, {})
-
-        for field_name, expected_type in field_types.items():
-            if hasattr(step, field_name):
-                field_value = getattr(step, field_name)
-
-                # Skip None values for optional fields
-                if field_value is None:
-                    continue
-
-                # Skip object type validation (used for complex objects)
-                if expected_type == object:
-                    continue
-
-                # Validate type
-                if not isinstance(field_value, expected_type):
-                    result.errors.append(
-                        f"Step {step_num} ({step_type}): Field '{field_name}' should be "
-                        f"{expected_type.__name__}, got {type(field_value).__name__}"
-                    )
-
-                # Additional validation for specific types
-                if expected_type == dict and isinstance(field_value, dict):
-                    # Validate dict structure for input_args
-                    if field_name == 'input_args':
-                        self._validate_input_args_structure(field_value, step_type, step_num, result)
-
-                elif expected_type == list and isinstance(field_value, list):
-                    # Validate list contents for steps
-                    if field_name == 'steps':
-                        self._validate_steps_list(field_value, step_type, step_num, result)
-                    elif field_name == 'cases':
-                        self._validate_cases_list(field_value, step_type, step_num, result)
-
-    def _validate_step_specific_requirements(self, step: Any, step_type: str, step_num: int, result: ComplianceValidationResult):
-        """Validate step-specific requirements based on Moveworks specifications."""
-        if step_type == 'ParallelStep':
-            if not hasattr(step, 'branches') or not hasattr(step, 'for_loop'):
-                result.mandatory_field_errors.append(
-                    f"Step {step_num} ({step_type}): ParallelStep must have either 'branches' or 'for_loop' defined"
-                )
-            elif not step.branches and not step.for_loop:
+        if isinstance(step, ParallelStep):
+            if not step.branches and not step.for_loop:
                 result.mandatory_field_errors.append(
                     f"Step {step_num} (ParallelStep): Must have either 'branches' or 'for_loop' configuration"
                 )
-
-        elif step_type == 'SwitchStep':
-            # Validate that cases is not empty
-            if hasattr(step, 'cases') and isinstance(step.cases, list) and len(step.cases) == 0:
-                result.mandatory_field_errors.append(
-                    f"Step {step_num} ({step_type}): 'cases' list cannot be empty - at least one case required"
-                )
-
-        elif step_type == 'ForLoopStep':
-            # Validate that steps is not empty
-            if hasattr(step, 'steps') and isinstance(step.steps, list) and len(step.steps) == 0:
-                result.mandatory_field_errors.append(
-                    f"Step {step_num} ({step_type}): 'steps' list cannot be empty - at least one step required for loop execution"
-                )
-
-        elif step_type == 'TryCatchStep':
-            # Validate that try_steps is not empty
-            if hasattr(step, 'try_steps') and isinstance(step.try_steps, list) and len(step.try_steps) == 0:
-                result.mandatory_field_errors.append(
-                    f"Step {step_num} ({step_type}): 'try_steps' list cannot be empty - at least one step required in try block"
-                )
-
-    def _validate_input_args_structure(self, input_args: dict, step_type: str, step_num: int, result: ComplianceValidationResult):
-        """Validate input_args dictionary structure and DSL expressions."""
-        for key, value in input_args.items():
-            # Validate key naming (should be valid identifiers)
-            if not key.replace('_', '').replace('-', '').isalnum():
-                result.warnings.append(
-                    f"Step {step_num} ({step_type}): input_args key '{key}' should use alphanumeric characters and underscores only"
-                )
-
-            # Check for DSL expressions that should be quoted
-            if isinstance(value, str):
-                if self._contains_dsl_expression(value):
-                    # This is handled by YAML generation, but we can warn about complex expressions
-                    if any(op in value for op in ['&&', '||', '==', '!=', '>=', '<=']):
-                        result.suggestions.append(
-                            f"Step {step_num} ({step_type}): Complex DSL expression in input_args['{key}'] - "
-                            f"ensure proper quoting in generated YAML"
+        
+        if isinstance(step, SwitchStep):
+            if step.cases:
+                for i, case in enumerate(step.cases):
+                    if not case.condition or not case.condition.strip():
+                        result.mandatory_field_errors.append(
+                            f"Step {step_num} (SwitchStep): Case {i+1} must have a non-empty condition"
                         )
-
-    def _validate_steps_list(self, steps: list, step_type: str, step_num: int, result: ComplianceValidationResult):
-        """Validate steps list structure."""
-        if len(steps) == 0:
-            result.warnings.append(
-                f"Step {step_num} ({step_type}): Empty steps list - no operations will be performed"
-            )
-
-        # Additional validation could be added here for step structure
-
-    def _validate_cases_list(self, cases: list, step_type: str, step_num: int, result: ComplianceValidationResult):
-        """Validate switch cases list structure."""
-        if len(cases) == 0:
-            result.mandatory_field_errors.append(
-                f"Step {step_num} ({step_type}): 'cases' list cannot be empty - at least one case required"
-            )
-
-        # Validate each case structure
-        for i, case in enumerate(cases):
-            if not hasattr(case, 'condition'):
-                result.mandatory_field_errors.append(
-                    f"Step {step_num} ({step_type}): Case {i+1} missing required 'condition' field"
-                )
-            if not hasattr(case, 'steps'):
-                result.mandatory_field_errors.append(
-                    f"Step {step_num} ({step_type}): Case {i+1} missing required 'steps' field"
-                )
-
-    def _contains_dsl_expression(self, value: str) -> bool:
-        """Check if a string contains DSL expressions."""
-        if not isinstance(value, str):
-            return False
-
-        dsl_patterns = [
-            r'\bdata\.',
-            r'\bmeta_info\.',
-            r'\$[A-Z_]+\(',
-            r'==|!=|>=|<=|>|<',
-            r'&&|\|\|'
-        ]
-
-        import re
-        return any(re.search(pattern, value) for pattern in dsl_patterns)
+                    if not case.steps:
+                        result.mandatory_field_errors.append(
+                            f"Step {step_num} (SwitchStep): Case {i+1} must have at least one step"
+                        )
     
     def _validate_field_naming(self, step: Any, step_type: str, step_num: int, result: ComplianceValidationResult):
         """Validate field naming follows lowercase_snake_case convention."""
         # Check output_key naming
         if hasattr(step, 'output_key') and step.output_key:
             output_key = step.output_key
-
-            # Skip validation for special underscore value (used for unused results)
-            if output_key == '_':
-                return
-
+            
             # Check for reserved names
             if output_key.lower() in self.reserved_output_keys:
                 result.field_naming_errors.append(
                     f"Step {step_num} ({step_type}): output_key '{output_key}' is a reserved name"
                 )
-
+            
             # Check naming convention
             if not self._is_valid_snake_case(output_key):
                 result.field_naming_errors.append(

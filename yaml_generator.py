@@ -22,8 +22,6 @@ def _is_dsl_expression(value: str) -> bool:
     """
     Enhanced check if a string value contains Moveworks DSL expressions that need quoting.
 
-    Based on official Moveworks documentation requirements for DSL value quoting.
-
     Args:
         value: String value to check
 
@@ -33,38 +31,32 @@ def _is_dsl_expression(value: str) -> bool:
     if not isinstance(value, str):
         return False
 
-    # Enhanced DSL patterns that need string quoting in YAML per Moveworks specs
+    # Enhanced DSL patterns that need string quoting in YAML
     dsl_patterns = [
-        # Data references (data.field_name, data.array[0], etc.)
+        # Data references
         r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # data.field_name.subfield
         r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*\[[0-9]+\]',  # data.array[0]
         r'\bdata\.[a-zA-Z_][a-zA-Z0-9_]*\[-?[0-9]+\]',  # data.array[-1]
 
-        # Meta info references (meta_info.user.email, etc.)
+        # Meta info references
         r'\bmeta_info\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # meta_info.user.email
 
-        # Requestor references
-        r'\brequestor\.[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*',  # requestor.email
-
-        # Comparison operators in conditions
-        r'==|!=|>=|<=|>|<',  # Comparison operators
+        # Comparison operators
+        r'==|!=|>=|<=|>|<',  # Comparison operators in conditions
 
         # Logical operators
         r'&&|\|\|',  # Logical AND/OR operators
 
-        # DSL functions (Moveworks built-in functions)
+        # DSL functions (enhanced detection)
         r'\$[A-Z_]+\(',  # All Moveworks functions starting with $
 
-        # Common DSL function patterns with whitespace handling
+        # Common DSL function patterns
         r'\$CONCAT\s*\(',  # $CONCAT with optional whitespace
         r'\$IF\s*\(',      # $IF with optional whitespace
         r'\$SPLIT\s*\(',   # $SPLIT with optional whitespace
         r'\$TEXT\s*\(',    # $TEXT with optional whitespace
         r'\$UPPER\s*\(',   # $UPPER with optional whitespace
         r'\$LOWER\s*\(',   # $LOWER with optional whitespace
-        r'\$MAP\s*\(',     # $MAP function
-        r'\$FILTER\s*\(',  # $FILTER function
-        r'\$LOOKUP\s*\(',  # $LOOKUP function
 
         # Array/object method calls that might be DSL
         r'\.contains\s*\(',  # .contains() method
@@ -83,100 +75,24 @@ def _is_dsl_expression(value: str) -> bool:
     return any(re.search(pattern, value) for pattern in dsl_patterns)
 
 
-def _is_numeric_or_boolean_literal(value: str) -> bool:
-    """
-    Check if a string represents a numeric or boolean literal that needs quoting.
-
-    Per Moveworks specification: "numeric and boolean literal values must be
-    enclosed in single quotes" for DSL parsing.
-
-    Args:
-        value: String value to check
-
-    Returns:
-        True if the value is a literal that needs quoting, False otherwise
-    """
-    if not isinstance(value, str):
-        return False
-
-    value = value.strip()
-
-    # Check for boolean literals
-    if value.lower() in ['true', 'false']:
-        return True
-
-    # Check for numeric literals (integers and floats)
-    try:
-        float(value)
-        return True
-    except ValueError:
-        pass
-
-    # Check for common numeric patterns
-    numeric_patterns = [
-        r'^\d+$',           # Integer: 123
-        r'^\d+\.\d+$',      # Float: 123.45
-        r'^-?\d+$',         # Negative integer: -123
-        r'^-?\d+\.\d+$',    # Negative float: -123.45
-        r'^\d+e[+-]?\d+$',  # Scientific notation: 1e10
-    ]
-
-    return any(re.match(pattern, value, re.IGNORECASE) for pattern in numeric_patterns)
-
-
 def _ensure_dsl_string_quoting(obj: Any) -> Any:
     """
-    Recursively ensure DSL expressions and literals are properly formatted for YAML.
-
-    Per Moveworks specification:
-    - DSL expressions (data.*, meta_info.*, etc.) need proper quoting
-    - Numeric and boolean literals must be enclosed in single quotes
-    - Lists and objects in input_args should use block quoting
+    Recursively ensure DSL expressions are properly quoted as strings.
 
     Args:
         obj: Object to process (dict, list, or primitive)
 
     Returns:
-        Processed object with DSL expressions properly formatted
+        Processed object with DSL expressions as quoted strings
     """
     if isinstance(obj, dict):
-        result = {}
-        for key, value in obj.items():
-            # Process the value
-            processed_value = _ensure_dsl_string_quoting(value)
-
-            # Handle special formatting for input_args values
-            if isinstance(processed_value, str):
-                # Check if it's a numeric or boolean literal that needs quoting
-                if _is_numeric_or_boolean_literal(processed_value):
-                    # Mark for single quote formatting (handled by YAML representer)
-                    processed_value = f"'{processed_value}'"
-                elif _is_dsl_expression(processed_value):
-                    # DSL expressions are handled by the YAML representer
-                    pass
-
-            result[key] = processed_value
-        return result
-
+        return {key: _ensure_dsl_string_quoting(value) for key, value in obj.items()}
     elif isinstance(obj, list):
         return [_ensure_dsl_string_quoting(item) for item in obj]
-
-    elif isinstance(obj, str):
-        # Handle string values
-        if _is_numeric_or_boolean_literal(obj):
-            # Numeric/boolean literals need single quotes per Moveworks spec
-            return f"'{obj}'"
-        elif _is_dsl_expression(obj):
-            # DSL expressions are handled by YAML representer
-            return obj
-        else:
-            # Regular strings
-            return obj
+    elif isinstance(obj, str) and _is_dsl_expression(obj):
+        # Return as-is - YAML serializer will handle quoting
+        return obj
     else:
-        # Handle non-string primitives
-        if isinstance(obj, (int, float, bool)):
-            # Convert to quoted string per Moveworks DSL requirements
-            return f"'{str(obj).lower() if isinstance(obj, bool) else str(obj)}'"
         return obj
 
 
@@ -555,30 +471,13 @@ def generate_yaml_string(workflow: Workflow, action_name: str = None) -> str:
 
     workflow_dict = workflow_to_yaml_dict(workflow, action_name)
 
-    # Enhanced YAML representer for multiline strings, DSL expressions, and literals
+    # Custom YAML representer for multiline strings and DSL expressions
     def represent_literal_str(dumper, data):
-        # Handle multiline strings with literal block scalar (|)
         if '\n' in data:
             return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
-
-        # Handle pre-quoted literals (already processed by _ensure_dsl_string_quoting)
-        elif data.startswith("'") and data.endswith("'") and len(data) > 2:
-            # Already quoted - use single quote style
-            return dumper.represent_scalar('tag:yaml.org,2002:str', data[1:-1], style="'")
-
-        # Handle DSL expressions that need double quotes
         elif _is_dsl_expression(data):
+            # Force DSL expressions to be quoted
             return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='"')
-
-        # Handle numeric/boolean literals that need single quotes
-        elif _is_numeric_or_boolean_literal(data):
-            return dumper.represent_scalar('tag:yaml.org,2002:str', data, style="'")
-
-        # Handle output_key: _ (underscore for unused results)
-        elif data == '_':
-            return dumper.represent_scalar('tag:yaml.org,2002:str', data)
-
-        # Default string representation
         return dumper.represent_scalar('tag:yaml.org,2002:str', data)
 
     # Add custom representer for script code and DSL expressions
