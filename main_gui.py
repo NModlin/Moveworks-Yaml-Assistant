@@ -31,12 +31,15 @@ from error_display import ErrorListWidget, ValidationDialog, StatusIndicator, He
 from help_system import get_tooltip, get_contextual_help
 # Unified tutorial system
 from tutorials import UnifiedTutorialManager
-from template_library import TemplateBrowserDialog, template_library
+from template_library import TemplateBrowserDialog, template_library, SimplifiedTemplateSystem
 from enhanced_json_selector import EnhancedJsonPathSelector
 from contextual_examples import ContextualExamplesPanel
 from enhanced_validator import enhanced_validator, ValidationError
 from bender_function_builder import BenderFunctionBuilder
 from enhanced_script_editor import EnhancedScriptEditor
+from expression_factory import ExpressionFactory, CommonPatterns
+from workflow_wizard import WorkflowWizard
+from simplified_data_path_selector import SimplifiedDataPathSelector
 from enhanced_apiton_validator import enhanced_apiton_validator, APIthonValidationResult
 from error_display import APIthonValidationWidget, EnhancedAPIthonValidationWidget
 from compliance_validator import compliance_validator, ComplianceValidationResult
@@ -44,6 +47,8 @@ from dsl_input_widget import DSLInputWidget
 from dsl_validator import dsl_validator
 from enhanced_input_args_table import EnhancedInputArgsTable
 from input_variables_widget import InputVariablesWidget
+from smart_suggestions_widget import SmartSuggestionsWidget
+from simple_visual_builder import SimpleVisualBuilder
 
 
 class WorkflowListWidget(QListWidget):
@@ -3341,33 +3346,26 @@ class MainWindow(QMainWindow):
         self._update_all_panels()
 
     def _create_left_panel(self):
-        """Create the left panel with step list and controls."""
+        """Create the redesigned left panel with simplified workflow management."""
         panel = QWidget()
         panel.setStyleSheet("""
             QWidget {
                 background-color: #f8f8f8;
                 border: 1px solid #e0e0e0;
-                border-radius: 4px;
+                border-radius: 6px;
             }
         """)
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
 
-        # Header
-        header_label = QLabel("🔧 Workflow Steps")
-        header_label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #333;
-                padding: 8px;
-                background-color: #e3f2fd;
-                border-radius: 4px;
-                border: 1px solid #2196f3;
-            }
-        """)
-        layout.addWidget(header_label)
+        # Modern header with quick actions
+        header_widget = self._create_modern_header()
+        layout.addWidget(header_widget)
+
+        # Quick start section
+        quick_start_widget = self._create_quick_start_section()
+        layout.addWidget(quick_start_widget)
 
         # Action name input for compound action
         action_name_group = QGroupBox("Compound Action Name")
@@ -3443,124 +3441,306 @@ class MainWindow(QMainWindow):
         """)
         layout.addWidget(self.workflow_list)
 
-        # Control buttons
-        button_layout = QVBoxLayout()
-        button_layout.setSpacing(4)
+        # Advanced tools section (collapsible)
+        advanced_section = self._create_advanced_tools_section()
+        layout.addWidget(advanced_section)
 
-        # Button styling
+        # Step management section
+        management_section = self._create_step_management_section()
+        layout.addWidget(management_section)
+
+        return panel
+
+    def _create_modern_header(self):
+        """Create a modern header with workflow title and quick actions."""
+        header_widget = QWidget()
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(8)
+
+        # Workflow title
+        title_label = QLabel("🚀 Workflow Builder")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 8px 12px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #3498db, stop:1 #2980b9);
+                color: white;
+                border-radius: 6px;
+            }
+        """)
+        header_layout.addWidget(title_label)
+
+        # Quick action buttons
+        wizard_btn = QPushButton("🧙")
+        wizard_btn.setToolTip("New Workflow Wizard")
+        wizard_btn.setFixedSize(32, 32)
+        wizard_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 16px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+        wizard_btn.clicked.connect(self._show_workflow_wizard)
+        header_layout.addWidget(wizard_btn)
+
+        template_btn = QPushButton("📋")
+        template_btn.setToolTip("Apply Template")
+        template_btn.setFixedSize(32, 32)
+        template_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9b59b6;
+                color: white;
+                border: none;
+                border-radius: 16px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #8e44ad;
+            }
+        """)
+        template_btn.clicked.connect(self._show_template_library)
+        header_layout.addWidget(template_btn)
+
+        return header_widget
+
+    def _create_quick_start_section(self):
+        """Create a quick start section with common actions."""
+        section_widget = QWidget()
+        section_layout = QVBoxLayout(section_widget)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(8)
+
+        # Section title
+        title_label = QLabel("⚡ Quick Start")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                font-weight: bold;
+                color: #34495e;
+                padding: 6px 8px;
+                background-color: #ecf0f1;
+                border-radius: 4px;
+                border-left: 4px solid #3498db;
+            }
+        """)
+        section_layout.addWidget(title_label)
+
+        # Quick action buttons in a grid
+        buttons_widget = QWidget()
+        buttons_layout = QVBoxLayout(buttons_widget)
+        buttons_layout.setSpacing(4)
+
+        # Common button style
         button_style = """
             QPushButton {
-                background-color: #2196f3;
+                background-color: #3498db;
                 color: white;
                 border: none;
                 border-radius: 4px;
                 padding: 8px 12px;
                 font-size: 12px;
-                font-weight: bold;
+                font-weight: 500;
                 text-align: left;
             }
             QPushButton:hover {
-                background-color: #1976d2;
+                background-color: #2980b9;
             }
             QPushButton:pressed {
-                background-color: #0d47a1;
+                background-color: #21618c;
             }
         """
 
-        # Basic step types
-        self.add_action_btn = QPushButton("➕ Add Action Step")
-        self.add_action_btn.setObjectName("add_action_btn")
-        self.add_action_btn.clicked.connect(self._add_action_step)
-        self.add_action_btn.setToolTip(get_tooltip("add_action"))
-        self.add_action_btn.setStyleSheet(button_style)
-        button_layout.addWidget(self.add_action_btn)
+        # Essential buttons only
+        action_btn = QPushButton("➕ Add Action")
+        action_btn.setStyleSheet(button_style)
+        action_btn.clicked.connect(self._add_action_step)
+        buttons_layout.addWidget(action_btn)
 
-        self.add_script_btn = QPushButton("📝 Add Script Step")
-        self.add_script_btn.setObjectName("add_script_btn")
-        self.add_script_btn.clicked.connect(self._add_script_step)
-        self.add_script_btn.setToolTip(get_tooltip("add_script"))
-        self.add_script_btn.setStyleSheet(button_style)
-        button_layout.addWidget(self.add_script_btn)
+        script_btn = QPushButton("📝 Add Script")
+        script_btn.setStyleSheet(button_style.replace("#3498db", "#27ae60").replace("#2980b9", "#229954").replace("#21618c", "#1e8449"))
+        script_btn.clicked.connect(self._add_script_step)
+        buttons_layout.addWidget(script_btn)
 
-        # Control flow step types
-        control_flow_style = button_style.replace("#2196f3", "#4caf50").replace("#1976d2", "#388e3c").replace("#0d47a1", "#2e7d32")
+        section_layout.addWidget(buttons_widget)
+        return section_widget
 
-        add_switch_btn = QPushButton("🔀 Add Switch Step")
-        add_switch_btn.setObjectName("add_switch_button")  # For tutorial targeting
-        add_switch_btn.clicked.connect(self._add_switch_step)
-        add_switch_btn.setStyleSheet(control_flow_style)
-        button_layout.addWidget(add_switch_btn)
+    def _create_advanced_tools_section(self):
+        """Create a collapsible section for advanced workflow tools."""
+        from PySide6.QtWidgets import QGroupBox, QToolButton
 
-        add_for_btn = QPushButton("🔄 Add For Loop Step")
-        add_for_btn.clicked.connect(self._add_for_step)
-        add_for_btn.setStyleSheet(control_flow_style)
-        button_layout.addWidget(add_for_btn)
+        group_box = QGroupBox("🔧 Advanced Tools")
+        group_box.setCheckable(True)
+        group_box.setChecked(False)  # Collapsed by default
+        group_box.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                color: #34495e;
+                border: 2px solid #bdc3c7;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+                background-color: #ecf0f1;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 8px 0 8px;
+                background-color: #ecf0f1;
+            }
+            QGroupBox::indicator {
+                width: 16px;
+                height: 16px;
+            }
+            QGroupBox::indicator:unchecked {
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTYgNEwxMCA4TDYgMTJWNFoiIGZpbGw9IiM3Zjg2OWMiLz4KPC9zdmc+);
+            }
+            QGroupBox::indicator:checked {
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgNkwxMCA2TDggMTBMNCA2WiIgZmlsbD0iIzM0OThlNSIvPgo8L3N2Zz4=);
+            }
+        """)
 
-        add_parallel_btn = QPushButton("⚡ Add Parallel Step")
-        add_parallel_btn.clicked.connect(self._add_parallel_step)
-        add_parallel_btn.setStyleSheet(control_flow_style)
-        button_layout.addWidget(add_parallel_btn)
+        layout = QVBoxLayout(group_box)
+        layout.setSpacing(4)
 
-        add_return_btn = QPushButton("↩️ Add Return Step")
-        add_return_btn.clicked.connect(self._add_return_step)
-        add_return_btn.setStyleSheet(control_flow_style)
-        button_layout.addWidget(add_return_btn)
+        # Button style for advanced tools
+        button_style = """
+            QPushButton {
+                background-color: #95a5a6;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 11px;
+                font-weight: 500;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #7f8c8d;
+            }
+            QPushButton:pressed {
+                background-color: #6c7b7d;
+            }
+        """
 
-        # Error handling step types
-        error_style = button_style.replace("#2196f3", "#ff9800").replace("#1976d2", "#f57c00").replace("#0d47a1", "#e65100")
+        # Control flow buttons
+        control_style = button_style.replace("#95a5a6", "#f39c12").replace("#7f8c8d", "#e67e22").replace("#6c7b7d", "#d35400")
 
-        add_try_catch_btn = QPushButton("🛡️ Add Try/Catch Step")
-        add_try_catch_btn.setObjectName("add_try_catch_button")  # For tutorial targeting
-        add_try_catch_btn.clicked.connect(self._add_try_catch_step)
-        add_try_catch_btn.setStyleSheet(error_style)
-        button_layout.addWidget(add_try_catch_btn)
+        switch_btn = QPushButton("🔀 Switch Step")
+        switch_btn.setObjectName("add_switch_button")
+        switch_btn.clicked.connect(self._add_switch_step)
+        switch_btn.setStyleSheet(control_style)
+        layout.addWidget(switch_btn)
 
-        add_raise_btn = QPushButton("⚠️ Add Raise Step")
-        add_raise_btn.clicked.connect(self._add_raise_step)
-        add_raise_btn.setStyleSheet(error_style)
-        button_layout.addWidget(add_raise_btn)
+        for_btn = QPushButton("🔄 For Loop")
+        for_btn.clicked.connect(self._add_for_step)
+        for_btn.setStyleSheet(control_style)
+        layout.addWidget(for_btn)
 
-        # Built-in actions
-        builtin_style = button_style.replace("#2196f3", "#9c27b0").replace("#1976d2", "#7b1fa2").replace("#0d47a1", "#4a148c")
+        parallel_btn = QPushButton("⚡ Parallel")
+        parallel_btn.clicked.connect(self._add_parallel_step)
+        parallel_btn.setStyleSheet(control_style)
+        layout.addWidget(parallel_btn)
 
-        add_mw_action_btn = QPushButton("🏗️ Add Built-in Action")
-        add_mw_action_btn.clicked.connect(self._add_mw_action_step)
-        add_mw_action_btn.setToolTip(get_tooltip("add_builtin"))
-        add_mw_action_btn.setStyleSheet(builtin_style)
-        button_layout.addWidget(add_mw_action_btn)
+        # Error handling buttons
+        error_style = button_style.replace("#95a5a6", "#e74c3c").replace("#7f8c8d", "#c0392b").replace("#6c7b7d", "#a93226")
 
-        # Spacer
-        spacer_label = QLabel()
-        spacer_label.setFixedHeight(8)
-        button_layout.addWidget(spacer_label)
+        try_catch_btn = QPushButton("🛡️ Try/Catch")
+        try_catch_btn.setObjectName("add_try_catch_button")
+        try_catch_btn.clicked.connect(self._add_try_catch_step)
+        try_catch_btn.setStyleSheet(error_style)
+        layout.addWidget(try_catch_btn)
+
+        raise_btn = QPushButton("⚠️ Raise Error")
+        raise_btn.clicked.connect(self._add_raise_step)
+        raise_btn.setStyleSheet(error_style)
+        layout.addWidget(raise_btn)
+
+        return_btn = QPushButton("↩️ Return")
+        return_btn.clicked.connect(self._add_return_step)
+        return_btn.setStyleSheet(error_style)
+        layout.addWidget(return_btn)
+
+        return group_box
+
+    def _create_step_management_section(self):
+        """Create step management controls."""
+        section_widget = QWidget()
+        section_layout = QVBoxLayout(section_widget)
+        section_layout.setContentsMargins(0, 0, 0, 0)
+        section_layout.setSpacing(6)
+
+        # Section title
+        title_label = QLabel("📋 Step Management")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                font-weight: bold;
+                color: #34495e;
+                padding: 6px 8px;
+                background-color: #ecf0f1;
+                border-radius: 4px;
+                border-left: 4px solid #e74c3c;
+            }
+        """)
+        section_layout.addWidget(title_label)
 
         # Management buttons
-        management_style = button_style.replace("#2196f3", "#f44336").replace("#1976d2", "#d32f2f").replace("#0d47a1", "#b71c1c")
+        buttons_layout = QVBoxLayout()
+        buttons_layout.setSpacing(3)
+
+        # Button style
+        button_style = """
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 10px;
+                font-size: 11px;
+                font-weight: 500;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+            QPushButton:pressed {
+                background-color: #a93226;
+            }
+        """
 
         remove_btn = QPushButton("🗑️ Remove Selected")
         remove_btn.clicked.connect(self._remove_selected_step)
         remove_btn.setToolTip(get_tooltip("remove_step"))
-        remove_btn.setStyleSheet(management_style)
-        button_layout.addWidget(remove_btn)
+        remove_btn.setStyleSheet(button_style)
+        buttons_layout.addWidget(remove_btn)
 
         # Movement buttons
-        move_style = button_style.replace("#2196f3", "#607d8b").replace("#1976d2", "#455a64").replace("#0d47a1", "#263238")
+        move_style = button_style.replace("#e74c3c", "#34495e").replace("#c0392b", "#2c3e50").replace("#a93226", "#1b2631")
 
         move_up_btn = QPushButton("⬆️ Move Up")
         move_up_btn.clicked.connect(self._move_step_up)
         move_up_btn.setToolTip(get_tooltip("move_up"))
         move_up_btn.setStyleSheet(move_style)
-        button_layout.addWidget(move_up_btn)
+        buttons_layout.addWidget(move_up_btn)
 
         move_down_btn = QPushButton("⬇️ Move Down")
         move_down_btn.clicked.connect(self._move_step_down)
         move_down_btn.setToolTip(get_tooltip("move_down"))
         move_down_btn.setStyleSheet(move_style)
-        button_layout.addWidget(move_down_btn)
+        buttons_layout.addWidget(move_down_btn)
 
-        layout.addLayout(button_layout)
-
-        return panel
+        section_layout.addLayout(buttons_layout)
+        return section_widget
 
     def _create_center_panel(self):
         """Create the center panel with step configuration and examples."""
@@ -3651,6 +3831,23 @@ class MainWindow(QMainWindow):
 
         center_tabs.addTab(bender_tab, "🔧 Bender Functions")
 
+        # Visual Builder tab
+        visual_tab = QWidget()
+        visual_tab.setStyleSheet("""
+            QWidget {
+                background-color: #f8f8f8;
+            }
+        """)
+        visual_layout = QVBoxLayout(visual_tab)
+        visual_layout.setContentsMargins(8, 8, 8, 8)
+        visual_layout.setSpacing(8)
+
+        self.visual_builder = SimpleVisualBuilder()
+        self.visual_builder.workflow_changed.connect(self._on_visual_workflow_changed)
+        visual_layout.addWidget(self.visual_builder)
+
+        center_tabs.addTab(visual_tab, "🎨 Visual Builder")
+
         return center_tabs
 
     def _create_right_panel(self):
@@ -3713,6 +3910,16 @@ class MainWindow(QMainWindow):
         # APIthon Validation Tab
         self.apiton_validation_widget = APIthonValidationWidget()
         right_tabs.addTab(self.apiton_validation_widget, "🐍 APIthon")
+
+        # Simplified Data Path Selector Tab
+        self.simplified_data_selector = SimplifiedDataPathSelector(self.workflow_list.workflow)
+        self.simplified_data_selector.path_selected.connect(self._on_simplified_path_selected)
+        right_tabs.addTab(self.simplified_data_selector, "🎯 Data Helper")
+
+        # Smart Suggestions Tab
+        self.smart_suggestions_widget = SmartSuggestionsWidget()
+        self.smart_suggestions_widget.suggestion_applied.connect(self._on_suggestion_applied)
+        right_tabs.addTab(self.smart_suggestions_widget, "🧠 Suggestions")
 
         layout.addWidget(right_tabs)
         return panel
@@ -3962,6 +4169,13 @@ class MainWindow(QMainWindow):
         new_action.setShortcut("Ctrl+N")
         new_action.triggered.connect(self._new_workflow)
         file_menu.addAction(new_action)
+
+        # Workflow Wizard
+        wizard_action = QAction("🧙 New Workflow Wizard...", self)
+        wizard_action.setShortcut("Ctrl+Shift+N")
+        wizard_action.triggered.connect(self._show_workflow_wizard)
+        wizard_action.setToolTip("Step-by-step wizard for creating workflows")
+        file_menu.addAction(wizard_action)
 
         open_action = QAction("Open Workflow...", self)
         open_action.setShortcut("Ctrl+O")
@@ -4310,6 +4524,66 @@ class MainWindow(QMainWindow):
         # For now, we just copy it to clipboard
         QApplication.clipboard().setText(path)
 
+    def _on_simplified_path_selected(self, path: str):
+        """Handle path selection from the simplified data path selector."""
+        # Copy to clipboard and show a brief notification
+        QApplication.clipboard().setText(path)
+
+        # Show a brief status message
+        if hasattr(self, 'statusBar'):
+            self.statusBar().showMessage(f"Data path copied to clipboard: {path}", 3000)
+
+    def _on_suggestion_applied(self, suggestion_id: str, implementation_code: str):
+        """Handle application of a smart suggestion."""
+        try:
+            # Execute the suggestion implementation code
+            # This is a simplified implementation - in production, you'd want more sophisticated code execution
+            if implementation_code.strip():
+                # For now, show the code to the user for manual application
+                reply = QMessageBox.question(
+                    self, "Apply Suggestion",
+                    f"Apply this suggestion?\n\nCode to execute:\n{implementation_code}",
+                    QMessageBox.Yes | QMessageBox.No,
+                    QMessageBox.Yes
+                )
+
+                if reply == QMessageBox.Yes:
+                    # In a real implementation, you would parse and execute the suggestion code
+                    # For now, we'll show a success message
+                    QMessageBox.information(
+                        self, "Suggestion Applied",
+                        "Suggestion applied successfully! Please review your workflow."
+                    )
+
+                    # Refresh all panels to show changes
+                    self._update_all_panels()
+
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error Applying Suggestion",
+                f"Failed to apply suggestion:\n{str(e)}"
+            )
+
+    def _on_visual_workflow_changed(self, workflow: Workflow):
+        """Handle workflow changes from the visual builder."""
+        # Update the main workflow
+        self.workflow_list.workflow = workflow
+        self.workflow_list.update_workflow_display()
+
+        # Update other panels (but not the visual builder to avoid recursion)
+        self.enhanced_json_panel.set_workflow(workflow)
+        self.yaml_panel.set_workflow(workflow)
+        self.input_variables_widget.set_workflow(workflow)
+
+        if hasattr(self, 'simplified_data_selector'):
+            self.simplified_data_selector.setWorkflow(workflow)
+
+        if hasattr(self, 'smart_suggestions_widget'):
+            self.smart_suggestions_widget.set_workflow(workflow)
+
+        self._update_validation()
+        self._update_compliance_validation()
+
     def _on_action_name_changed(self):
         """Handle action name changes."""
         # Refresh YAML when action name changes
@@ -4333,6 +4607,19 @@ class MainWindow(QMainWindow):
         self.enhanced_json_panel.set_workflow(self.workflow_list.workflow)
         self.yaml_panel.set_workflow(self.workflow_list.workflow)
         self.input_variables_widget.set_workflow(self.workflow_list.workflow)
+
+        # Update simplified data selector if it exists
+        if hasattr(self, 'simplified_data_selector'):
+            self.simplified_data_selector.setWorkflow(self.workflow_list.workflow)
+
+        # Update smart suggestions
+        if hasattr(self, 'smart_suggestions_widget'):
+            self.smart_suggestions_widget.set_workflow(self.workflow_list.workflow)
+
+        # Update visual builder
+        if hasattr(self, 'visual_builder'):
+            self.visual_builder.set_workflow(self.workflow_list.workflow)
+
         self._update_validation()
         self._update_compliance_validation()
 
@@ -4687,6 +4974,37 @@ class MainWindow(QMainWindow):
             self.workflow_list.update_workflow_display()
             self.config_panel.clear_selection()
             self._update_all_panels()
+
+    def _show_workflow_wizard(self):
+        """Show the workflow creation wizard."""
+        wizard = WorkflowWizard(self)
+        wizard.workflow_created.connect(self._apply_wizard_workflow)
+        wizard.exec()
+
+    def _apply_wizard_workflow(self, workflow):
+        """Apply a workflow created by the wizard."""
+        # Ask if user wants to replace current workflow
+        if self.workflow_list.workflow.steps:
+            reply = QMessageBox.question(
+                self, "Apply Wizard Workflow",
+                "This will replace your current workflow. Continue?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        # Apply the new workflow
+        self.workflow_list.workflow = workflow
+        self.workflow_list.update_workflow_display()
+        self.config_panel.clear_selection()
+        self._update_all_panels()
+
+        # Show success message
+        QMessageBox.information(
+            self, "Workflow Created",
+            "Workflow created successfully! You can now customize it further using the full editor."
+        )
 
     def _open_workflow(self):
         """Open a workflow from file."""

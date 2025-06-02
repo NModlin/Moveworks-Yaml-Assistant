@@ -21,6 +21,7 @@ from core_structures import (
     ForLoopStep, ParallelStep, ParallelBranch, ParallelForLoop, ReturnStep,
     RaiseStep, TryCatchStep, CatchBlock
 )
+from expression_factory import ExpressionFactory, CommonPatterns
 
 
 @dataclass
@@ -465,6 +466,128 @@ else:
         self.templates["try_catch_handling"] = try_catch_template
         self.templates["return_data_mapping"] = return_template
 
+        # Add simplified beginner templates using ExpressionFactory
+        self._add_simplified_templates()
+
+    def _add_simplified_templates(self):
+        """Add simplified templates using ExpressionFactory for easier workflow creation."""
+
+        # Simple User Lookup Template
+        simple_user_lookup = Workflow(steps=CommonPatterns.user_lookup_pattern())
+        self.templates["simple_user_lookup"] = WorkflowTemplate(
+            name="Simple User Lookup",
+            description="Basic user lookup with validation - perfect for beginners",
+            category="Getting Started",
+            difficulty="Beginner",
+            tags=["user", "lookup", "simple", "beginner"],
+            workflow=simple_user_lookup
+        )
+
+        # Quick Action Template
+        quick_action = Workflow(steps=[
+            ExpressionFactory.create_action(
+                action_name="mw.send_notification",
+                output_key="notification_result",
+                input_args={
+                    "message": "data.message",
+                    "recipient": "data.recipient_email"
+                },
+                description="Send a notification"
+            )
+        ])
+        self.templates["quick_action"] = WorkflowTemplate(
+            name="Quick Action",
+            description="Single action workflow - the simplest possible workflow",
+            category="Getting Started",
+            difficulty="Beginner",
+            tags=["action", "simple", "notification", "beginner"],
+            workflow=quick_action
+        )
+
+        # Basic Script Template
+        basic_script = Workflow(steps=[
+            ExpressionFactory.create_script(
+                code="""
+# Simple data processing
+result = {
+    "processed": True,
+    "timestamp": "2024-01-01T00:00:00Z",
+    "input_received": data.input_data
+}
+return result
+                """.strip(),
+                output_key="processing_result",
+                description="Process input data"
+            )
+        ])
+        self.templates["basic_script"] = WorkflowTemplate(
+            name="Basic Script",
+            description="Simple APIthon script for data processing",
+            category="Getting Started",
+            difficulty="Beginner",
+            tags=["script", "apiton", "processing", "beginner"],
+            workflow=basic_script
+        )
+
+        # Approval Workflow Template
+        approval_workflow = Workflow(steps=[
+            ExpressionFactory.create_action(
+                action_name="mw.get_user_by_email",
+                output_key="requestor",
+                input_args={"email": "data.requestor_email"},
+                description="Get requestor information"
+            ),
+            ExpressionFactory.create_action(
+                action_name="mw.send_approval_request",
+                output_key="approval_request",
+                input_args={
+                    "approver": "data.manager_email",
+                    "request_details": "data.request_details",
+                    "requestor": "data.requestor.user.name"
+                },
+                description="Send approval request to manager"
+            )
+        ])
+        self.templates["approval_workflow"] = WorkflowTemplate(
+            name="Approval Workflow",
+            description="Basic approval request workflow",
+            category="Approvals",
+            difficulty="Beginner",
+            tags=["approval", "manager", "request", "workflow"],
+            workflow=approval_workflow
+        )
+
+        # Data Transformation Template
+        data_transform = Workflow(steps=[
+            ExpressionFactory.create_script(
+                code="""
+# Transform user data
+users = data.user_list
+transformed = []
+
+for user in users:
+    transformed.append({
+        "id": user.id,
+        "full_name": f"{user.first_name} {user.last_name}",
+        "email": user.email.lower(),
+        "department": user.department.upper()
+    })
+
+return {"transformed_users": transformed}
+                """.strip(),
+                output_key="transformed_data",
+                description="Transform user data format"
+            )
+        ])
+        self.templates["data_transformation"] = WorkflowTemplate(
+            name="Data Transformation",
+            description="Transform and format data using APIthon",
+            category="Data Processing",
+            difficulty="Intermediate",
+            tags=["data", "transformation", "formatting", "apiton"],
+            workflow=data_transform
+        )
+
     def _load_user_templates(self):
         """Load user-created templates from files."""
         if not os.path.exists(self.templates_dir):
@@ -571,6 +694,160 @@ else:
         except Exception as e:
             print(f"Error importing template: {e}")
             return None
+
+
+class SimplifiedTemplateSystem:
+    """A more accessible template system focused on common use cases."""
+
+    def __init__(self):
+        # Define templates based on the most common Moveworks workflows
+        self.templates = {
+            "user_lookup": {
+                "name": "User Lookup",
+                "description": "Get user details by email",
+                "category": "User Management",
+                "complexity": "Simple",
+                "yaml": """action_name: user_lookup_workflow
+steps:
+  - action:
+      action_name: mw.get_user_by_email
+      output_key: user_info
+      input_args:
+        email: data.input_email"""
+            },
+            "send_notification": {
+                "name": "Send Notification",
+                "description": "Send a simple notification message",
+                "category": "Communication",
+                "complexity": "Simple",
+                "yaml": """action_name: notification_workflow
+steps:
+  - action:
+      action_name: mw.send_notification
+      output_key: notification_result
+      input_args:
+        message: data.message
+        recipient: data.recipient_email"""
+            },
+            "approval_request": {
+                "name": "Approval Request",
+                "description": "Request approval from a manager",
+                "category": "Approvals",
+                "complexity": "Simple",
+                "yaml": """action_name: approval_workflow
+steps:
+  - action:
+      action_name: mw.get_user_by_email
+      output_key: requestor
+      input_args:
+        email: data.requestor_email
+  - action:
+      action_name: mw.send_approval_request
+      output_key: approval_request
+      input_args:
+        approver: data.manager_email
+        request_details: data.request_details
+        requestor: data.requestor.user.name"""
+            },
+            "ticket_creation": {
+                "name": "Create Ticket",
+                "description": "Create a support ticket",
+                "category": "IT Service Management",
+                "complexity": "Moderate",
+                "yaml": """action_name: ticket_creation_workflow
+steps:
+  - action:
+      action_name: servicenow.create_incident
+      output_key: ticket_result
+      input_args:
+        short_description: data.issue_summary
+        description: data.issue_details
+        caller_id: data.requestor_id
+        urgency: "3"
+        impact: "3" """
+            },
+            "data_processing": {
+                "name": "Data Processing",
+                "description": "Process and transform data",
+                "category": "Data Processing",
+                "complexity": "Moderate",
+                "yaml": """action_name: data_processing_workflow
+steps:
+  - script:
+      code: |
+        # Process input data
+        result = {
+            "processed": True,
+            "timestamp": "2024-01-01T00:00:00Z",
+            "input_received": data.input_data
+        }
+        return result
+      output_key: processing_result"""
+            },
+            "conditional_logic": {
+                "name": "Conditional Logic",
+                "description": "Make decisions based on conditions",
+                "category": "Control Flow",
+                "complexity": "Advanced",
+                "yaml": """action_name: conditional_workflow
+steps:
+  - switch:
+      description: "Handle different user types"
+      cases:
+        - condition: "data.user_type == 'admin'"
+          steps:
+            - action:
+                action_name: admin_action
+                output_key: admin_result
+      default:
+        steps:
+          - action:
+              action_name: regular_action
+              output_key: regular_result"""
+            },
+            "error_handling": {
+                "name": "Error Handling",
+                "description": "Handle errors gracefully",
+                "category": "Best Practices",
+                "complexity": "Advanced",
+                "yaml": """action_name: error_handling_workflow
+steps:
+  - try_catch:
+      description: "Handle potential failures"
+      try:
+        - action:
+            action_name: risky_action
+            output_key: action_result
+      catch:
+        on_status_code: ["E400"]
+        steps:
+          - raise:
+              message: "Action failed, please try again"
+              output_key: error_result"""
+            }
+        }
+
+    def get_template_categories(self):
+        """Return a list of unique template categories."""
+        return sorted(set(t["category"] for t in self.templates.values()))
+
+    def get_templates_by_category(self, category):
+        """Return all templates in a specific category."""
+        return {k: v for k, v in self.templates.items() if v["category"] == category}
+
+    def get_template_by_key(self, key):
+        """Get a specific template by its key."""
+        return self.templates.get(key)
+
+    def apply_template(self, key, workflow):
+        """Apply a template to the current workflow object."""
+        template = self.get_template_by_key(key)
+        if not template:
+            return False
+
+        # This would parse the YAML and update the workflow object
+        # For now, we'll return the template for manual application
+        return template
 
 
 class TemplateBrowserDialog(QDialog):
